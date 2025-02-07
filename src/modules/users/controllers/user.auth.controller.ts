@@ -8,7 +8,7 @@ import { IResponse } from 'src/common/response/interface/response.interface';
 @ApiTags('auth')
 @Controller({
   version: '1',
-  path: '/auth',
+  path: '/exam-api/auth',
 })
 @Controller()
 export class UserController {

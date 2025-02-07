@@ -33,10 +33,10 @@ class PaginationQueryDto {
   'exam.examStatus'?: string;
 }
 
-@ApiTags('registrants')
+@ApiTags('exam')
 @Controller({
   version: '1',
-  path: '/registrants',
+  path: '/exam-api',
 })
 export class RegistrantsController {
   constructor(private readonly registrantsService: RegistrantsService) {}
