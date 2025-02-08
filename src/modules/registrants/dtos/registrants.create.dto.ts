@@ -59,7 +59,6 @@ export class RegistrantCreateDto {
   @ApiProperty({
     example: '2020-01-01',
     description: 'The date of the previous appointment of the registrant',
-    required: true,
   })
   @Type(() => Date)
   dateOfPrevAppointment: Date;
@@ -67,7 +66,6 @@ export class RegistrantCreateDto {
   @ApiProperty({
     example: '2020-01-01',
     description: 'The date of the present appointment of the registrant',
-    required: true,
   })
   @Type(() => Date)
   dateOfPresentAppointment: Date;
@@ -75,7 +73,7 @@ export class RegistrantCreateDto {
   @ApiProperty({
     example: '2020-01-01',
     description: 'The date of the first appointment of the registrant',
-    required: true,
+  
   })
   @Type(() => Date)
   dateOfFirstAppointment: Date;
@@ -90,7 +88,7 @@ export class RegistrantCreateDto {
   @ApiProperty({
     example: 'https://example.com/profile.jpg',
     description: 'The profile passport of the registrant',
-    required: true,
+   
   })
   @IsString()
   @IsNotEmpty()
@@ -134,7 +132,7 @@ export class RegistrantCreateDto {
 
   @ApiProperty({
     description: 'The examination details of the registrant',
-    required: true,
+
     type: ExamCreateDto,
   })
   @Type(() => ExamCreateDto)

@@ -24,19 +24,19 @@ export class RegistrantsEntity extends Document {
   @Prop({ required: true })
   expectedRank: string;
 
-  @Prop({ required: true })
+  @Prop({ })
   dateOfPrevAppointment: Date;
 
-  @Prop({ required: true })
+  @Prop({ })
   dateOfPresentAppointment: Date;
 
-  @Prop({ required: true })
+  @Prop({  })
   dateOfFirstAppointment: Date;
 
   @Prop({ required: true })
   disability: boolean;
 
-  @Prop({ required: true })
+  @Prop({  })
   profilePassport: string;
 
   @Prop({ required: true })
@@ -51,7 +51,7 @@ export class RegistrantsEntity extends Document {
   @Prop({ required: true })
   mda: string;
 
-  @Prop({ required: true })
+  @Prop({ })
   exam: ExamsEntity;
 }
 
