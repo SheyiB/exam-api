@@ -11,28 +11,28 @@ enum examType {
 
 @Schema()
 export class ExamsEntity extends Document {
-  @Prop({ required: true })
+  @Prop({ })
   examDate: Date;
 
-  @Prop({ required: true })
+  @Prop({  })
   examType: examType;
 
-  @Prop({ required: true })
+  @Prop({  })
   examStatus: string;
 
-  @Prop({ required: true })
+  @Prop({  })
   generalPaperScore: number;
 
-  @Prop({ required: true })
+  @Prop({  })
   professionalPaperScore: number;
 
-  @Prop({ required: true })
+  @Prop({  })
   totalScore: number;
 
-  @Prop({ required: true })
+  @Prop({  })
   remark: string;
 
-  @Prop({ required: true })
+  @Prop({  })
   examNumber: string;
 }
 
