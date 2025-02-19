@@ -35,10 +35,20 @@ export class RegistrantsService implements IRegistrantsService {
     private registrantsModel: Model<RegistrantsDoc>,
   ) {}
 
-  private generateExamNumber(registeredUsers: number): string {
+  private generateExamNumber(registeredUsers: number, examType: string): string {
+    let type;
+    if(examType === 'registration') {
+      type = 'REG';
+    } else if (examType === 'conversion') {
+      type = 'CON';
+    }
+    else {
+      type = 'PROM';
+    }
     const currentYear = new Date().getFullYear();
-    const paddedNumber = String(registeredUsers + 1).padStart(4, '0');
-    return `ABG/${currentYear}/${paddedNumber}`;
+    const paddedNumber = String(registeredUsers + 1).padStart(5, '0');
+    
+    return `SEB/${type}/${currentYear}/${paddedNumber}`;
   }
 
   private getDefaultSelection() {
@@ -69,7 +79,7 @@ export class RegistrantsService implements IRegistrantsService {
     }
 
     const registeredUsers = await this.registrantsModel.countDocuments();
-    registrant.exam.examNumber = this.generateExamNumber(registeredUsers);
+    registrant.exam.examNumber = this.generateExamNumber(registeredUsers, registrant.exam.examType);
 
     const newRegistrant = new this.registrantsModel(registrant);
     return newRegistrant.save();
