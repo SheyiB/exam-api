@@ -17,8 +17,10 @@ import {
   ApiResponse,
   ApiQuery,
   ApiParam,
+  ApiBody,
 } from '@nestjs/swagger';
 import { RegistrantCreateDto } from '../dtos/registrants.create.dto';
+import { PartialType } from '@nestjs/swagger';
 import { RegistrantsService } from '../services/registrants.service';
 import { IResponse } from 'src/common/response/interface/response.interface';
 
@@ -56,13 +58,15 @@ export class RegistrantsController {
   }
 
   @ApiOperation({ summary: 'Update registrant details' })
+    @ApiBody({ type: PartialType(RegistrantCreateDto) }) 
   @ApiParam({ name: 'registrantId', description: 'Registrant ID' })
   @HttpCode(HttpStatus.OK)
   @Put('/:registrantId')
   async updateRegistrant(
-    @Param('registrantId') registrantId: string,
-    @Body(new ValidationPipe({ transform: true })) 
+     @Body(new ValidationPipe({ transform: true })) 
     registrant: Partial<RegistrantCreateDto>,
+    @Param('registrantId') registrantId: string,
+   
   ): Promise<IResponse> {
     const updatedRegistrant = await this.registrantsService.updateRegistrants(
       registrantId,
