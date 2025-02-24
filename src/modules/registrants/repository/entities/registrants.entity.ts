@@ -5,6 +5,15 @@ import { ExamsEntity } from 'src/modules/exams/repository/entities/exams.entity'
 export const RegistrantsDatabaseName = 'registrants';
 
 @Schema()
+export class Qualification extends Document {
+  @Prop({ required: true })
+  qualification: string;
+
+  @Prop({ required: true })
+  dateOfQualification: Date;
+}
+
+@Schema()
 export class RegistrantsEntity extends Document {
   @Prop({ required: true })
   surname: string;
@@ -15,17 +24,35 @@ export class RegistrantsEntity extends Document {
   @Prop({})
   middleName: string;
 
+  @Prop({})
+  dateOfBirth: Date;
+
+  @Prop({})
+  staffVerificationNumber: string;
+
   @Prop({ required: true })
   gender: string;
 
   @Prop({ required: true })
   presentRank: string;
 
-  @Prop({ required: true })
+  @Prop({})
   expectedRank: string;
+
+  @Prop({})
+  presentGradeLevel: string;
+
+  @Prop({ })
+  presentStep: string;
+
+  @Prop({})
+  expectedGradeLevel: string;
 
   @Prop({ })
   dateOfPrevAppointment: Date;
+
+  @Prop({})
+  dateOfConfirmation: Date;
 
   @Prop({ })
   dateOfPresentAppointment: Date;
@@ -35,6 +62,9 @@ export class RegistrantsEntity extends Document {
 
   @Prop({ required: true })
   disability: boolean;
+
+  @Prop({})
+  qualifications: Qualification[];
 
   @Prop({  })
   profilePassport: string;

@@ -20,8 +20,8 @@ export class UserEntity extends Document {
   @Prop({ required: true })
   password: string;
 
-  @Prop({ required: true, unique: true })
-  employeeId: string;
+  @Prop({ default: null })
+  profilePicture: string;
 
   @Prop({ default: Date.now })
   createdAt: Date;
