@@ -7,6 +7,7 @@ import { UserService } from './services/user.service';
 import { UserController } from './controllers/user.auth.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UserEntity, UserSchema } from './repository/entities/user.entity';
+import { CloudinaryModule } from 'src/common/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { UserEntity, UserSchema } from './repository/entities/user.entity';
       }),
       inject: [ConfigService],
     }),
+    CloudinaryModule,
   ],
   controllers: [UserController],
   providers: [UserService, JwtStrategy],
