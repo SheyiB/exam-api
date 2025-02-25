@@ -25,7 +25,6 @@ export class UserController {
         jobTitle: { type: 'string' },
         workEmailAddress: { type: 'string' },
         password: { type: 'string' },
-        employeeId: { type: 'string' },
         profilePicture: {
           type: 'string',
           format: 'binary',
