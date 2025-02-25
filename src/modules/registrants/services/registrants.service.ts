@@ -61,6 +61,7 @@ export class RegistrantsService implements IRegistrantsService {
       presentRank: 1,
       expectedRank: 1,
       'exam.remark': 1,
+      'exam.examType':1,
     };
   }
 
@@ -119,12 +120,12 @@ export class RegistrantsService implements IRegistrantsService {
 
     const [registrants, total] = await Promise.all([
       this.registrantsModel
-        .find(filterQuery)
-        .select(this.getDefaultSelection())
-        .sort({ createdAt: -1 })
-        .limit(limit)
-        .skip(skip)
-        .lean(),
+      .find(filterQuery)
+      .select(this.getDefaultSelection())
+      .sort({ 'exam.examNumber': 1 }) // Sort by examNumber in increasing order
+      .limit(limit)
+      .skip(skip)
+      .lean(),
       this.registrantsModel.countDocuments(filterQuery),
     ]);
 
@@ -225,28 +226,91 @@ export class RegistrantsService implements IRegistrantsService {
       {
         $group: {
           _id: {
-            presentRank: '$presentRank',
             expectedRank: '$expectedRank',
+            presentRank: '$presentRank',
           },
           count: { $sum: 1 },
         },
       },
     ]);
 
-    return promotionResults.reduce((acc, { _id, count }) => ({
-      ...acc,
-      [`level${_id.presentRank.split(' ')[1]}_${_id.expectedRank.split(' ')[1]}`]: count,
-    }), {});
+    console.log('Ballll');
+    console.log(promotionResults);
+
+    const stats = promotionResults.map(({ _id, count }) => ({
+      expectedRank: _id.expectedRank,
+      presentRank: _id.presentRank,
+      count,
+    }));
+
+    return stats;
+
+   
   }
 
-  async getRegistrantsByStatus(status: 'passed' | 'failed' | 'incapacitated') {
-    const query = status === 'incapacitated' 
+  async getRegistrantsByStatus(
+    status: 'passed' | 'failed' | 'incapacitated',
+    query: { limit?: string; page?: string; [key: string]: any }
+  ): Promise<PaginatedResponse<RegistrantsDoc>> {
+    const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+    const page = Math.max(parseInt(query.page || '1', 10), 1);
+    const skip = (page - 1) * limit;
+
+    const statusQuery = status === 'incapacitated' 
       ? { disability: true }
       : { 'exam.examStatus': status };
 
-    return this.registrantsModel
-      .find(query)
-      .select(this.getDefaultSelection())
-      .lean();
+    // Remove pagination params from query
+    const { limit: _, page: __, ...filterQuery } = query;
+
+    const finalQuery = { ...statusQuery, ...filterQuery };
+
+    const [registrants, total] = await Promise.all([
+      this.registrantsModel
+        .find(finalQuery)
+        .select(this.getDefaultSelection())
+        .sort({ 'exam.examNumber': 1 }) // Sort by examNumber in increasing order
+        .limit(limit)
+        .skip(skip)
+        .lean(),
+      this.registrantsModel.countDocuments(finalQuery),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: registrants,
+      pagination: {
+        total,
+        totalPages,
+        currentPage: page,
+        limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
+  async getExamStatusByLevel() {
+    // all passes and failures for each levl(present rank) if none return zero
+    const examStatusByLevel = await this.registrantsModel.aggregate([
+      {
+        $group: {
+          _id: '$presentRank',
+          passed: {
+            $sum: {
+              $cond: [{ $eq: ['$exam.examStatus', 'passed'] }, 1, 0],
+            },
+          },
+          failed: {
+            $sum: {
+              $cond: [{ $eq: ['$exam.examStatus', 'failed'] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    return examStatusByLevel;
   }
 }

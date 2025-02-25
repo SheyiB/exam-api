@@ -85,6 +85,11 @@ export class RegistrantsController {
   @ApiQuery({ name: 'gender', required: false, type: String })
   @ApiQuery({ name: 'presentRank', required: false, type: String })
   @ApiQuery({ name: 'expectedRank', required: false, type: String })
+  @ApiQuery({ name: 'exam.examType', required: false, type: String })
+  @ApiQuery({ name: 'exam.examStatus', required: false, type: String })
+  @ApiQuery({ name: 'cadre', required: false, type: String })
+  @ApiQuery({ name: 'presentGradeLevel', required: false, type: String })
+    
   @HttpCode(HttpStatus.OK)
   @Get('/')
   async allRegistrants(
@@ -154,10 +159,23 @@ export class RegistrantsController {
   }
 
   @ApiOperation({ summary: 'Get passed registrants' })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'mda', required: false, type: String })
+  @ApiQuery({ name: 'gender', required: false, type: String })
+  @ApiQuery({ name: 'presentRank', required: false, type: String })
+  @ApiQuery({ name: 'expectedRank', required: false, type: String })
+  @ApiQuery({ name: 'exam.examType', required: false, type: String })
+  @ApiQuery({ name: 'exam.examStatus', required: false, type: String })
+  @ApiQuery({ name: 'cadre', required: false, type: String })
+  @ApiQuery({ name: 'presentGradeLevel', required: false, type: String })
   @HttpCode(HttpStatus.OK)
   @Get('/status/passed')
-  async getPasses(): Promise<IResponse> {
-    const registrants = await this.registrantsService.getRegistrantsByStatus('passed');
+  async getPasses(
+     @Query(new ValidationPipe({ transform: true })) 
+    query: PaginationQueryDto
+  ): Promise<IResponse> {
+    const registrants = await this.registrantsService.getRegistrantsByStatus('passed', query);
 
     return {
       data: registrants,
@@ -165,10 +183,23 @@ export class RegistrantsController {
   }
 
   @ApiOperation({ summary: 'Get failed registrants' })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'mda', required: false, type: String })
+  @ApiQuery({ name: 'gender', required: false, type: String })
+  @ApiQuery({ name: 'presentRank', required: false, type: String })
+  @ApiQuery({ name: 'expectedRank', required: false, type: String })
+  @ApiQuery({ name: 'exam.examType', required: false, type: String })
+  @ApiQuery({ name: 'exam.examStatus', required: false, type: String })
+  @ApiQuery({ name: 'cadre', required: false, type: String })
+  @ApiQuery({ name: 'presentGradeLevel', required: false, type: String })
   @HttpCode(HttpStatus.OK)
   @Get('/status/failed')
-  async getFailures(): Promise<IResponse> {
-    const registrants = await this.registrantsService.getRegistrantsByStatus('failed');
+  async getFailures(
+     @Query(new ValidationPipe({ transform: true })) 
+    query: PaginationQueryDto
+  ): Promise<IResponse> {
+    const registrants = await this.registrantsService.getRegistrantsByStatus('failed', query);
 
     return {
       data: registrants,
@@ -176,10 +207,23 @@ export class RegistrantsController {
   }
 
   @ApiOperation({ summary: 'Get registrants with disabilities' })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'mda', required: false, type: String })
+  @ApiQuery({ name: 'gender', required: false, type: String })
+  @ApiQuery({ name: 'presentRank', required: false, type: String })
+  @ApiQuery({ name: 'expectedRank', required: false, type: String })
+  @ApiQuery({ name: 'exam.examType', required: false, type: String })
+  @ApiQuery({ name: 'exam.examStatus', required: false, type: String })
+  @ApiQuery({ name: 'cadre', required: false, type: String })
+  @ApiQuery({ name: 'presentGradeLevel', required: false, type: String })
   @HttpCode(HttpStatus.OK)
   @Get('/status/incapacitated')
-  async getDisabled(): Promise<IResponse> {
-    const registrants = await this.registrantsService.getRegistrantsByStatus('incapacitated');
+  async getDisabled(
+      @Query(new ValidationPipe({ transform: true })) 
+      query: PaginationQueryDto
+  ): Promise<IResponse> {
+    const registrants = await this.registrantsService.getRegistrantsByStatus('incapacitated', query);
 
     return {
       data: registrants,
