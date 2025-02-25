@@ -1,12 +1,32 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsBoolean, IsEmail, IsOptional, IsDate, ValidateNested, IsArray } from 'class-validator';
 import { ExamCreateDto } from 'src/modules/exams/dtos/exams.create.dto';
+
+export class QualificationDto {
+  @ApiProperty({
+    example: 'Bachelor of Science',
+    description: 'The qualification title',
+    required: true,
+  })
+  @IsString()
+  @IsNotEmpty()
+  qualification: string;
+
+  @ApiProperty({
+    example: '2020-01-01',
+    description: 'The date when the qualification was obtained',
+    required: true,
+  })
+  @IsDate()
+  @Type(() => Date)
+  dateOfQualification: Date;
+}
 
 export class RegistrantCreateDto {
   @ApiProperty({
-    example: 'John',
-    description: 'The first name of the registrant',
+    example: 'Doe',
+    description: 'The surname of the registrant',
     required: true,
   })
   @IsString()
@@ -14,8 +34,8 @@ export class RegistrantCreateDto {
   surname: string;
 
   @ApiProperty({
-    example: 'Doe',
-    description: 'The last name of the registrant',
+    example: 'John',
+    description: 'The first name of the registrant',
     required: true,
   })
   @IsString()
@@ -23,11 +43,29 @@ export class RegistrantCreateDto {
   firstName: string;
 
   @ApiPropertyOptional({
-    example: 'Doe',
+    example: 'James',
     description: 'The middle name of the registrant',
   })
   @IsString()
-  middleName: string;
+  @IsOptional()
+  middleName?: string;
+
+  @ApiPropertyOptional({
+    example: '1990-01-01',
+    description: 'The date of birth of the registrant',
+  })
+  @IsDate()
+  @IsOptional()
+  @Type(() => Date)
+  dateOfBirth?: Date;
+
+  @ApiPropertyOptional({
+    example: 'SVN123456',
+    description: 'The staff verification number of the registrant',
+  })
+  @IsString()
+  @IsOptional()
+  staffVerificationNumber?: string;
 
   @ApiProperty({
     example: 'Male',
@@ -39,7 +77,7 @@ export class RegistrantCreateDto {
   gender: string;
 
   @ApiProperty({
-    example: 'Sgt',
+    example: 'Sergeant',
     description: 'The current rank of the registrant',
     required: true,
   })
@@ -47,59 +85,107 @@ export class RegistrantCreateDto {
   @IsNotEmpty()
   presentRank: string;
 
-  @ApiProperty({
-    example: 'Cpl',
+  @ApiPropertyOptional({
+    example: 'Inspector',
     description: 'The expected rank of the registrant',
-    required: true,
   })
   @IsString()
-  @IsNotEmpty()
-  expectedRank: string;
+  @IsOptional()
+  expectedRank?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    example: 'GL-8',
+    description: 'The present grade level of the registrant',
+  })
+  @IsString()
+  @IsOptional()
+  presentGradeLevel?: string;
+
+  @ApiPropertyOptional({
+    example: '5',
+    description: 'The present step of the registrant',
+  })
+  @IsString()
+  @IsOptional()
+  presentStep?: string;
+
+  @ApiPropertyOptional({
+    example: 'GL-9',
+    description: 'The expected grade level of the registrant',
+  })
+  @IsString()
+  @IsOptional()
+  expectedGradeLevel?: string;
+
+  @ApiPropertyOptional({
     example: '2020-01-01',
     description: 'The date of the previous appointment of the registrant',
   })
+  @IsDate()
+  @IsOptional()
   @Type(() => Date)
-  dateOfPrevAppointment: Date;
+  dateOfPrevAppointment?: Date;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    example: '2018-01-01',
+    description: 'The date of confirmation of the registrant',
+  })
+  @IsDate()
+  @IsOptional()
+  @Type(() => Date)
+  dateOfConfirmation?: Date;
+
+  @ApiPropertyOptional({
     example: '2020-01-01',
     description: 'The date of the present appointment of the registrant',
   })
+  @IsDate()
+  @IsOptional()
   @Type(() => Date)
-  dateOfPresentAppointment: Date;
+  dateOfPresentAppointment?: Date;
 
-  @ApiProperty({
-    example: '2020-01-01',
+  @ApiPropertyOptional({
+    example: '2015-01-01',
     description: 'The date of the first appointment of the registrant',
-  
   })
+  @IsDate()
+  @IsOptional()
   @Type(() => Date)
-  dateOfFirstAppointment: Date;
+  dateOfFirstAppointment?: Date;
 
   @ApiProperty({
     example: false,
     description: 'The disability status of the registrant',
     required: true,
   })
+  @IsBoolean()
   disability: boolean;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: [QualificationDto],
+    description: 'The qualifications of the registrant',
+  })
+  @ValidateNested({ each: true })
+  @IsArray()
+  @Type(() => QualificationDto)
+  @IsOptional()
+  qualifications?: QualificationDto[];
+
+  @ApiPropertyOptional({
     example: 'https://example.com/profile.jpg',
     description: 'The profile passport of the registrant',
-   
   })
   @IsString()
-  @IsNotEmpty()
-  profilePassport: string;
+  @IsOptional()
+  profilePassport?: string;
 
   @ApiProperty({
-    example: 'chima@absg.gov.ng',
+    example: 'john.doe@example.com',
     description: 'The email address of the registrant',
     required: true,
   })
   @IsString()
+  @IsEmail()
   @IsNotEmpty()
   email: string;
 
@@ -130,12 +216,12 @@ export class RegistrantCreateDto {
   @IsNotEmpty()
   mda: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'The examination details of the registrant',
-
     type: ExamCreateDto,
   })
+  @ValidateNested()
   @Type(() => ExamCreateDto)
-  @IsNotEmpty()
-  exam: ExamCreateDto;
+  @IsOptional()
+  exam?: ExamCreateDto;
 }

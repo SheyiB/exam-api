@@ -1,7 +1,8 @@
 import { faker } from '@faker-js/faker';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsEmail, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsEmail, MaxLength, IsOptional } from 'class-validator';
+import { IFile } from 'src/common/file/interfaces/file.interface';
 
 export class UserSignupDto {
   @ApiProperty({
@@ -56,13 +57,13 @@ export class UserSignupDto {
   @MaxLength(50)
   readonly password: string;
 
+
   @ApiProperty({
-    example: faker.string.uuid(),
-    description: 'The unique employee ID',
-    required: true,
+    description: 'The profile picture of the user',
+    required: false,
+    type: 'string', // Use string as the type
+    format: 'binary', // Specify binary format
   })
-  @IsNotEmpty()
-  @MaxLength(50)
-  @Type(() => String)
-  readonly employeeId: string;
+  @IsOptional()
+  readonly profilePicture: IFile;
 }

@@ -3,7 +3,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 export const ExamsDatabaseName = 'exams';
 
-enum examType {
+export enum examType {
   promotion = 'promotion',
   conversion = 'conversion',
   registration = 'registration',

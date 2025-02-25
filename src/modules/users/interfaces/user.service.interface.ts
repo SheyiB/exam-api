@@ -4,7 +4,7 @@ import { UserLoginDto } from '../dtos/user.login';
 
 export interface IUserService {
   signup(data: UserSignupDto): Promise<Partial<UserDoc>>;
-  login(data: UserLoginDto): Promise<string>;
+  login(data: UserLoginDto): Promise<{ token: string; userName: string; email: string }>;
   getAllUsers(): Promise<Partial<UserDoc>[]>;
   getUserById(userId: string): Promise<Partial<UserDoc>>;
   deleteUser(userId: string): Promise<void>;

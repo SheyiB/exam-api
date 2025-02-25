@@ -11,15 +11,19 @@ import {
 } from 'src/common/constants';
 import { compareSync, genSaltSync, hashSync } from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
+import { CloudinaryStorageService } from 'src/common/cloudinary/services/cloudinary.storage.service';
 
 @Injectable()
 export class UserService implements IUserService {
   constructor(
     @InjectModel(UserEntity.name) private userModel: Model<UserDoc>,
     private readonly jwtService: JwtService,
+    private readonly cloudinaryStorageService: CloudinaryStorageService,
   ) {}
 
-  async signup(data: UserSignupDto): Promise<Partial<UserDoc>> {
+  async signup(data: UserSignupDto & { profilePicture?: Express.Multer.File }): Promise<Partial<UserDoc>> {
+    let profilePictureUrl: string | undefined;
+
     const existingUser = await this.userModel.findOne({
       workEmailAddress: data.workEmailAddress,
     });
@@ -33,12 +37,27 @@ export class UserService implements IUserService {
 
     const hashedPassword = await this.hashPassword(data.password);
 
+    // Only upload if profilePicture exists and has the expected properties
+    if (data.profilePicture && data.profilePicture.path) {
+      try {
+        profilePictureUrl = await this.cloudinaryStorageService.uploadFile(
+          data.fullname,
+          data.profilePicture
+        );
+      } catch (error) {
+        console.error('Profile picture upload failed:', error);
+        // Continue with user creation even if image upload fails
+        // You could throw an error here instead if image upload is critical
+      }
+    }
+
     const user = new this.userModel({
       ...data,
       password: hashedPassword,
+      profilePicture: profilePictureUrl,
     });
 
-    const createdUser = await this.userModel.create<UserEntity>(user);
+    const createdUser = await this.userModel.create(user);
 
     return {
       _id: createdUser._id,
@@ -48,8 +67,7 @@ export class UserService implements IUserService {
       workEmailAddress: createdUser.workEmailAddress,
     };
   }
-
-  async login(data: UserLoginDto): Promise<string> {
+  async login(data: UserLoginDto): Promise<{ token: string; userName: string; email: string }> {
     const user = await this.userModel.findOne({
       workEmailAddress: data.email,
     });
@@ -79,7 +97,14 @@ export class UserService implements IUserService {
 
     const token = this.jwtService.sign(payload);
 
-    return token;
+    const userName = user.fullname;
+    const email = user.workEmailAddress;
+
+    return {
+      token,
+      userName,
+      email,
+    };
   }
 
   async getAllUsers(): Promise<Partial<UserDoc>[]> {
