@@ -158,6 +158,19 @@ export class RegistrantsController {
     };
   }
 
+
+  @ApiOperation({ summary: 'Get promotion statistics' })
+  @HttpCode(HttpStatus.OK)
+  @Get('/levels-status')
+  async examStatusByLevel(): Promise<IResponse> {
+    const stats = await this.registrantsService.getExamStatusByLevel();
+
+    return {
+      data: stats,
+    };
+  }
+
+
   @ApiOperation({ summary: 'Get passed registrants' })
   @ApiQuery({ name: 'page', required: false, type: String })
   @ApiQuery({ name: 'limit', required: false, type: String })

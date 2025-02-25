@@ -234,18 +234,24 @@ export class RegistrantsService implements IRegistrantsService {
       },
     ]);
 
-    console.log('Ballll');
-    console.log(promotionResults);
+    const rankRange = Array.from({ length: 15 }, (_, i) => ({
+      presentRank: i + 1,
+      expectedRank: i + 2,
+    }));
 
-    const stats = promotionResults.map(({ _id, count }) => ({
-      expectedRank: _id.expectedRank,
-      presentRank: _id.presentRank,
-      count,
+    const statsMap = promotionResults.reduce((acc, { _id, count }) => {
+      const key = `${_id.presentRank}-${_id.expectedRank}`;
+      acc[key] = count;
+      return acc;
+    }, {});
+
+    const stats = rankRange.map(({ presentRank, expectedRank }) => ({
+      presentRank,
+      expectedRank,
+      count: statsMap[`${presentRank}-${expectedRank}`] || 0,
     }));
 
     return stats;
-
-   
   }
 
   async getRegistrantsByStatus(
@@ -311,6 +317,25 @@ export class RegistrantsService implements IRegistrantsService {
       },
     ]);
 
-    return examStatusByLevel;
+    const stats = examStatusByLevel.map(({ _id, passed, failed }) => ({
+      level: _id,
+      passed,
+      failed,
+    })).sort(
+      (a, b) => {
+        if (a.level < b.level) {
+          return -1;
+        }
+        if (a.level > b.level) {
+          return 1;
+        }
+        return 0;
+      }
+    );
+
+    return stats;
+
   }
+
+
 }
