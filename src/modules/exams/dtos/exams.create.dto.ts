@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsString, IsOptional, IsEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum ExamType {
@@ -20,6 +20,7 @@ export class ExamCreateDto {
     required: true,
   })
   @Type(() => Date)
+  @IsNotEmpty()
   examDate: Date;
 
   @ApiProperty({
@@ -29,7 +30,8 @@ export class ExamCreateDto {
     required: true,
   })
   @IsEnum(ExamType)
-  @IsNotEmpty()
+  @IsString()
+    @IsNotEmpty()
   examType: ExamType;
 
   @ApiProperty({
@@ -39,7 +41,7 @@ export class ExamCreateDto {
   })
   @IsEnum(ExamStatus)
   @IsString()
-  @IsNotEmpty()
+    @IsOptional()
   examStatus: ExamStatus;
 
   @ApiProperty({
@@ -47,7 +49,7 @@ export class ExamCreateDto {
     description: 'Score obtained in general paper',
   })
   @IsNumber()
-  @IsNotEmpty()
+    @IsOptional()
   generalPaperScore: number;
 
   @ApiProperty({
@@ -55,7 +57,8 @@ export class ExamCreateDto {
     description: 'Score obtained in professional paper',
   })
   @IsNumber()
-  @IsNotEmpty()
+    
+    @IsOptional()
   professionalPaperScore: number;
 
   @ApiProperty({
@@ -63,7 +66,8 @@ export class ExamCreateDto {
     description: 'Total score obtained in the examination',
   })
   @IsNumber()
-  @IsNotEmpty()
+    
+    @IsOptional()
   totalScore: number;
 
   @ApiProperty({
@@ -71,7 +75,8 @@ export class ExamCreateDto {
     description: 'Remarks about the examination performance',
   })
   @IsString()
-  @IsNotEmpty()
+    
+    @IsOptional()
   remark: string;
 
   @ApiProperty({
@@ -80,6 +85,8 @@ export class ExamCreateDto {
     required: true,
   })
   @IsString()
-  @IsNotEmpty()
+    
+  @IsOptional()
+    @IsEmpty()
   examNumber: string;
 }
