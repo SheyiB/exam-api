@@ -61,7 +61,11 @@ export class RegistrantsService implements IRegistrantsService {
       presentRank: 1,
       expectedRank: 1,
       'exam.remark': 1,
-      'exam.examType':1,
+      'exam.examType': 1,
+      'exam.generalPaperScore': 1,
+      'exam.professionalPaperScore': 1,
+      'exam.totalScore': 1,
+      
     };
   }
 
