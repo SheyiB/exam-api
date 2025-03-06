@@ -89,7 +89,7 @@ export class RegistrantsController {
   @ApiQuery({ name: 'exam.examStatus', required: false, type: String })
   @ApiQuery({ name: 'cadre', required: false, type: String })
   @ApiQuery({ name: 'presentGradeLevel', required: false, type: String })
-    
+  @ApiQuery({ name: 'search', required: false, type: String })  
   @HttpCode(HttpStatus.OK)
   @Get('/')
   async allRegistrants(
@@ -182,6 +182,8 @@ export class RegistrantsController {
   @ApiQuery({ name: 'exam.examStatus', required: false, type: String })
   @ApiQuery({ name: 'cadre', required: false, type: String })
   @ApiQuery({ name: 'presentGradeLevel', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+
   @HttpCode(HttpStatus.OK)
   @Get('/status/passed')
   async getPasses(
@@ -206,6 +208,8 @@ export class RegistrantsController {
   @ApiQuery({ name: 'exam.examStatus', required: false, type: String })
   @ApiQuery({ name: 'cadre', required: false, type: String })
   @ApiQuery({ name: 'presentGradeLevel', required: false, type: String })
+    @ApiQuery({ name: 'search', required: false, type: String })
+  
   @HttpCode(HttpStatus.OK)
   @Get('/status/failed')
   async getFailures(
@@ -230,6 +234,8 @@ export class RegistrantsController {
   @ApiQuery({ name: 'exam.examStatus', required: false, type: String })
   @ApiQuery({ name: 'cadre', required: false, type: String })
   @ApiQuery({ name: 'presentGradeLevel', required: false, type: String })
+    @ApiQuery({ name: 'search', required: false, type: String })
+  
   @HttpCode(HttpStatus.OK)
   @Get('/status/incapacitated')
   async getDisabled(
