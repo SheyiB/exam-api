@@ -83,6 +83,9 @@ export class RegistrantsEntity extends Document {
 
   @Prop({ })
   exam: ExamsEntity;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const RegistrantsSchema =

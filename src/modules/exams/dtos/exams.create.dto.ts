@@ -61,14 +61,6 @@ export class ExamCreateDto {
     @IsOptional()
   professionalPaperScore: number;
 
-  @ApiProperty({
-    example: 155,
-    description: 'Total score obtained in the examination',
-  })
-  @IsNumber()
-    
-    @IsOptional()
-  totalScore: number;
 
   @ApiProperty({
     example: 'Excellent performance',

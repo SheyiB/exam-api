@@ -15,6 +15,7 @@ import {
   ENUM_REQUEST_STATUS_CODE_ERROR,
   ENUM_RESPONSE_MESSAGE,
 } from 'src/common/constants';
+import { examType, examStatus } from '../../exams/repository/entities/exams.entity';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -35,15 +36,19 @@ export class RegistrantsService implements IRegistrantsService {
     private registrantsModel: Model<RegistrantsDoc>,
   ) {}
 
-  private generateExamNumber(registeredUsers: number, examType: string): string {
+  private generateExamNumber(registeredUsers: number, registrantExamType: string): string {
     let type;
-    if(examType === 'registration') {
-      type = 'REG';
-    } else if (examType === 'conversion') {
-      type = 'CON';
-    }
-    else {
+    if(registrantExamType === examType.confirmation) {
+      type = 'CONF';
+    } else if (registrantExamType === examType.conversion) {
+      type = 'CONV';
+    } else if (registrantExamType === examType.promotion) {
       type = 'PROM';
+    } else {
+      throw new UnprocessableEntityException({
+        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+        message: ENUM_RESPONSE_MESSAGE.INVALID_EXAM_TYPE,
+      });
     }
     const currentYear = new Date().getFullYear();
     const paddedNumber = String(registeredUsers + 1).padStart(5, '0');
@@ -65,7 +70,7 @@ export class RegistrantsService implements IRegistrantsService {
       'exam.generalPaperScore': 1,
       'exam.professionalPaperScore': 1,
       'exam.totalScore': 1,
-      
+      'exam.examStatus': 1,
     };
   }
 
@@ -85,6 +90,8 @@ export class RegistrantsService implements IRegistrantsService {
 
     const registeredUsers = await this.registrantsModel.countDocuments();
     registrant.exam.examNumber = this.generateExamNumber(registeredUsers, registrant.exam.examType);
+    
+    // Note: We don't need to manually set the examStatus as the pre-save middleware will handle it
 
     const newRegistrant = new this.registrantsModel(registrant);
     return newRegistrant.save();
@@ -94,6 +101,7 @@ export class RegistrantsService implements IRegistrantsService {
     id: string,
     registrant: Partial<RegistrantCreateDto>,
   ): Promise<RegistrantsDoc> {
+    // The pre-update middleware will automatically update the examStatus based on scores
     const existingRegistrant = await this.registrantsModel.findByIdAndUpdate(
       id,
       registrant,
@@ -113,24 +121,51 @@ export class RegistrantsService implements IRegistrantsService {
   async findAllRegistrants(query: {
     limit?: string;
     page?: string;
+    search?: string;
     [key: string]: any;
   }): Promise<PaginatedResponse<RegistrantsDoc>> {
     const limit = Math.min(parseInt(query.limit || '20', 10), 100);
     const page = Math.max(parseInt(query.page || '1', 10), 1);
     const skip = (page - 1) * limit;
 
-    // Remove pagination params from query
-    const { limit: _, page: __, ...filterQuery } = query;
+    // Remove pagination and search params from query
+    const { limit: _, page: __, search, ...filterQuery } = query;
+
+    // Build search query if search parameter is provided
+    let searchQuery = {};
+    if (search) {
+      searchQuery = {
+        $or: [
+          { surname: { $regex: search, $options: 'i' } },
+          { firstName: { $regex: search, $options: 'i' } },
+          { middleName: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+          { phone: { $regex: search, $options: 'i' } },
+          { staffVerificationNumber: { $regex: search, $options: 'i' } },
+          { mda: { $regex: search, $options: 'i' } },
+          { presentRank: { $regex: search, $options: 'i' } },
+          { expectedRank: { $regex: search, $options: 'i' } },
+          { cadre: { $regex: search, $options: 'i' } },
+          { 'exam.examNumber': { $regex: search, $options: 'i' } },
+          { 'exam.examType': { $regex: search, $options: 'i' } },
+          { 'exam.examStatus': { $regex: search, $options: 'i' } },
+          { 'exam.remark': { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+
+    // Combine search query with other filters
+    const finalQuery = search ? { ...searchQuery, ...filterQuery } : filterQuery;
 
     const [registrants, total] = await Promise.all([
       this.registrantsModel
-      .find(filterQuery)
-      .select(this.getDefaultSelection())
-      .sort({ 'exam.examNumber': 1 }) // Sort by examNumber in increasing order
-      .limit(limit)
-      .skip(skip)
-      .lean(),
-      this.registrantsModel.countDocuments(filterQuery),
+        .find(finalQuery)
+        .select(this.getDefaultSelection())
+        .sort({ createdAt: -1 }) // Latest first
+        .limit(limit)
+        .skip(skip)
+        .lean(),
+      this.registrantsModel.countDocuments(finalQuery),
     ]);
 
     const totalPages = Math.ceil(total / limit);
@@ -213,8 +248,9 @@ export class RegistrantsService implements IRegistrantsService {
 
     return {
       totalRegistrations,
-      totalPassed: examStatusMap['passed'] || 0,
-      totalFailed: examStatusMap['failed'] || 0,
+      totalPassed: examStatusMap[examStatus.passed] || 0,
+      totalFailed: examStatusMap[examStatus.failed] || 0,
+      totalPending: examStatusMap[examStatus.pending] || 0,
       totalIncapacitated: incapacitatedStats,
       ...examTypeMap,
     };
@@ -224,7 +260,8 @@ export class RegistrantsService implements IRegistrantsService {
     const promotionResults = await this.registrantsModel.aggregate([
       {
         $match: {
-          'exam.examStatus': 'passed',
+          'exam.examStatus': examStatus.passed,
+          'exam.examType': examType.promotion,
         },
       },
       {
@@ -259,27 +296,52 @@ export class RegistrantsService implements IRegistrantsService {
   }
 
   async getRegistrantsByStatus(
-    status: 'passed' | 'failed' | 'incapacitated',
-    query: { limit?: string; page?: string; [key: string]: any }
+    status: 'passed' | 'failed' | 'pending' | 'incapacitated',
+    query: { limit?: string; page?: string; search?: string; [key: string]: any }
   ): Promise<PaginatedResponse<RegistrantsDoc>> {
     const limit = Math.min(parseInt(query.limit || '20', 10), 100);
     const page = Math.max(parseInt(query.page || '1', 10), 1);
     const skip = (page - 1) * limit;
 
-    const statusQuery = status === 'incapacitated' 
+    const statusQuery = status === 'incapacitated'
       ? { disability: true }
       : { 'exam.examStatus': status };
 
-    // Remove pagination params from query
-    const { limit: _, page: __, ...filterQuery } = query;
+    // Remove pagination and search params from query
+    const { limit: _, page: __, search, ...filterQuery } = query;
 
-    const finalQuery = { ...statusQuery, ...filterQuery };
+    // Build search query if search parameter is provided
+    let searchQuery = {};
+    if (search) {
+      searchQuery = {
+        $or: [
+          { surname: { $regex: search, $options: 'i' } },
+          { firstName: { $regex: search, $options: 'i' } },
+          { middleName: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+          { phone: { $regex: search, $options: 'i' } },
+          { staffVerificationNumber: { $regex: search, $options: 'i' } },
+          { mda: { $regex: search, $options: 'i' } },
+          { presentRank: { $regex: search, $options: 'i' } },
+          { expectedRank: { $regex: search, $options: 'i' } },
+          { cadre: { $regex: search, $options: 'i' } },
+          { 'exam.examNumber': { $regex: search, $options: 'i' } },
+          { 'exam.examType': { $regex: search, $options: 'i' } },
+          { 'exam.remark': { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+
+    // Combine status query, search query and other filters
+    const finalQuery = search 
+      ? { ...statusQuery, ...searchQuery, ...filterQuery } 
+      : { ...statusQuery, ...filterQuery };
 
     const [registrants, total] = await Promise.all([
       this.registrantsModel
         .find(finalQuery)
         .select(this.getDefaultSelection())
-        .sort({ 'exam.examNumber': 1 }) // Sort by examNumber in increasing order
+        .sort({ createdAt: -1 }) // Latest first
         .limit(limit)
         .skip(skip)
         .lean(),
@@ -302,29 +364,35 @@ export class RegistrantsService implements IRegistrantsService {
   }
 
   async getExamStatusByLevel() {
-    // all passes and failures for each levl(present rank) if none return zero
+    // Get pass, fail, and pending counts for each level (present rank)
     const examStatusByLevel = await this.registrantsModel.aggregate([
       {
         $group: {
           _id: '$presentRank',
           passed: {
             $sum: {
-              $cond: [{ $eq: ['$exam.examStatus', 'passed'] }, 1, 0],
+              $cond: [{ $eq: ['$exam.examStatus', examStatus.passed] }, 1, 0],
             },
           },
           failed: {
             $sum: {
-              $cond: [{ $eq: ['$exam.examStatus', 'failed'] }, 1, 0],
+              $cond: [{ $eq: ['$exam.examStatus', examStatus.failed] }, 1, 0],
+            },
+          },
+          pending: {
+            $sum: {
+              $cond: [{ $eq: ['$exam.examStatus', examStatus.pending] }, 1, 0],
             },
           },
         },
       },
     ]);
 
-    const stats = examStatusByLevel.map(({ _id, passed, failed }) => ({
+    const stats = examStatusByLevel.map(({ _id, passed, failed, pending }) => ({
       level: _id,
       passed,
       failed,
+      pending,
     })).sort(
       (a, b) => {
         if (a.level < b.level) {
@@ -338,8 +406,51 @@ export class RegistrantsService implements IRegistrantsService {
     );
 
     return stats;
-
   }
 
+  // New method to get average scores by exam type
+  async getAverageScoresByExamType() {
+    const averageScores = await this.registrantsModel.aggregate([
+      {
+        $match: {
+          'exam.generalPaperScore': { $exists: true },
+          'exam.professionalPaperScore': { $exists: true }
+        }
+      },
+      {
+        $group: {
+          _id: '$exam.examType',
+          avgGeneralScore: { $avg: '$exam.generalPaperScore' },
+          avgProfessionalScore: { $avg: '$exam.professionalPaperScore' },
+          avgTotalScore: { 
+            $avg: { $add: ['$exam.generalPaperScore', '$exam.professionalPaperScore'] } 
+          },
+          totalCandidates: { $sum: 1 },
+          passedCandidates: {
+            $sum: {
+              $cond: [{ $eq: ['$exam.examStatus', examStatus.passed] }, 1, 0]
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          examType: '$_id',
+          avgGeneralScore: { $round: ['$avgGeneralScore', 2] },
+          avgProfessionalScore: { $round: ['$avgProfessionalScore', 2] },
+          avgTotalScore: { $round: ['$avgTotalScore', 2] },
+          totalCandidates: 1,
+          passedCandidates: 1,
+          passRate: {
+            $round: [{ $multiply: [{ $divide: ['$passedCandidates', '$totalCandidates'] }, 100] }, 2]
+          }
+        }
+      },
+      {
+        $sort: { examType: 1 }
+      }
+    ]);
 
+    return averageScores;
+  }
 }
