@@ -16,6 +16,7 @@ import {
   ENUM_RESPONSE_MESSAGE,
 } from 'src/common/constants';
 import { examType, examStatus } from '../../exams/repository/entities/exams.entity';
+import { ExamStatus } from 'src/modules/exams/dtos/exams.create.dto';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -93,6 +94,17 @@ export class RegistrantsService implements IRegistrantsService {
     
     // Note: We don't need to manually set the examStatus as the pre-save middleware will handle it
 
+    if (registrant.exam.generalPaperScore && registrant.exam.professionalPaperScore) {
+      registrant.exam.totalScore = registrant.exam.generalPaperScore + registrant.exam.professionalPaperScore;
+      if (registrant.exam.totalScore < 50) {
+        registrant.exam.examStatus = ExamStatus.FAILED;
+      } else if (registrant.exam.totalScore >= 50) {
+        registrant.exam.examStatus = ExamStatus.PASSED;
+      }
+    }
+
+
+
     const newRegistrant = new this.registrantsModel(registrant);
     return newRegistrant.save();
   }
@@ -102,6 +114,16 @@ export class RegistrantsService implements IRegistrantsService {
     registrant: Partial<RegistrantCreateDto>,
   ): Promise<RegistrantsDoc> {
     // The pre-update middleware will automatically update the examStatus based on scores
+
+     if (registrant.exam.generalPaperScore && registrant.exam.professionalPaperScore) {
+      registrant.exam.totalScore = registrant.exam.generalPaperScore + registrant.exam.professionalPaperScore;
+      if (registrant.exam.totalScore < 50) {
+        registrant.exam.examStatus = ExamStatus.FAILED;
+      } else if (registrant.exam.totalScore >= 50) {
+        registrant.exam.examStatus = ExamStatus.PASSED;
+      }
+     }
+    
     const existingRegistrant = await this.registrantsModel.findByIdAndUpdate(
       id,
       registrant,
