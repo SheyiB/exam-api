@@ -283,35 +283,35 @@ export class RegistrantsService implements IRegistrantsService {
       {
         $match: {
           'exam.examStatus': examStatus.passed,
-          'exam.examType': examType.promotion,
         },
       },
       {
         $group: {
           _id: {
-            expectedRank: '$expectedRank',
-            presentRank: '$presentRank',
+            presentGradeLevel: '$presentGradeLevel',
+            expectedGradeLevel: '$expectedGradeLevel',
           },
           count: { $sum: 1 },
         },
       },
     ]);
 
+
     const rankRange = Array.from({ length: 15 }, (_, i) => ({
-      presentRank: i + 1,
-      expectedRank: i + 2,
+    presentGradeLevel: String(i + 1), 
+    expectedGradeLevel: String(i + 2), 
     }));
 
     const statsMap = promotionResults.reduce((acc, { _id, count }) => {
-      const key = `${_id.presentRank}-${_id.expectedRank}`;
+      const key = `${_id.presentGradeLevel}-${_id.expectedGradeLevel}`;
       acc[key] = count;
       return acc;
     }, {});
 
-    const stats = rankRange.map(({ presentRank, expectedRank }) => ({
-      presentRank,
-      expectedRank,
-      count: statsMap[`${presentRank}-${expectedRank}`] || 0,
+    const stats = rankRange.map(({ presentGradeLevel, expectedGradeLevel }) => ({
+      presentGradeLevel,
+      expectedGradeLevel,
+      count: statsMap[`${presentGradeLevel}-${expectedGradeLevel}`] || 0,
     }));
 
     return stats;
