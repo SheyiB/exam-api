@@ -23,6 +23,7 @@ import { RegistrantCreateDto } from '../dtos/registrants.create.dto';
 import { PartialType } from '@nestjs/swagger';
 import { RegistrantsService } from '../services/registrants.service';
 import { IResponse } from 'src/common/response/interface/response.interface';
+import { examType } from 'src/modules/exams/repository/entities/exams.entity';
 
 class PaginationQueryDto {
   page?: string;
@@ -159,17 +160,22 @@ export class RegistrantsController {
   }
 
 
-  @ApiOperation({ summary: 'Get promotion statistics' })
-  @HttpCode(HttpStatus.OK)
-  @Get('/levels-status')
-  async examStatusByLevel(): Promise<IResponse> {
-    const stats = await this.registrantsService.getExamStatusByLevel();
-
-    return {
-      data: stats,
-    };
-  }
-
+ @ApiOperation({ summary: 'Get exam statistics by level' })
+@ApiQuery({
+  name: 'examType',
+  required: false,
+  enum: examType,
+  description: 'Filter statistics by exam type (optional)'
+})
+@HttpCode(HttpStatus.OK)
+@Get('/levels-status')
+async examStatusByLevel(@Query('examType') examType?: examType): Promise<IResponse> {
+  const stats = await this.registrantsService.getExamStatusByLevel(examType);
+  
+  return {
+    data: stats,
+  };
+}
 
   @ApiOperation({ summary: 'Get passed registrants' })
   @ApiQuery({ name: 'page', required: false, type: String })

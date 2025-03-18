@@ -385,50 +385,54 @@ export class RegistrantsService implements IRegistrantsService {
     };
   }
 
-  async getExamStatusByLevel() {
-    // Get pass, fail, and pending counts for each level (present rank)
-    const examStatusByLevel = await this.registrantsModel.aggregate([
-      {
-        $group: {
-          _id: '$presentRank',
-          passed: {
-            $sum: {
-              $cond: [{ $eq: ['$exam.examStatus', examStatus.passed] }, 1, 0],
-            },
+ async getExamStatusByLevel(examTypeFilter?: examType) {
+  // Base aggregation pipeline
+  const pipeline = [
+    // Add match stage if examType is provided
+    ...(examTypeFilter ? [{ $match: { 'exam.examType': examTypeFilter } }] : []),
+    {
+      $group: {
+        _id: '$presentRank',
+        passed: {
+          $sum: {
+            $cond: [{ $eq: ['$exam.examStatus', examStatus.passed] }, 1, 0],
           },
-          failed: {
-            $sum: {
-              $cond: [{ $eq: ['$exam.examStatus', examStatus.failed] }, 1, 0],
-            },
+        },
+        failed: {
+          $sum: {
+            $cond: [{ $eq: ['$exam.examStatus', examStatus.failed] }, 1, 0],
           },
-          pending: {
-            $sum: {
-              $cond: [{ $eq: ['$exam.examStatus', examStatus.pending] }, 1, 0],
-            },
+        },
+        pending: {
+          $sum: {
+            $cond: [{ $eq: ['$exam.examStatus', examStatus.pending] }, 1, 0],
           },
         },
       },
-    ]);
+    },
+  ];
 
-    const stats = examStatusByLevel.map(({ _id, passed, failed, pending }) => ({
+  const examStatusByLevel = await this.registrantsModel.aggregate(pipeline);
+
+  const stats = examStatusByLevel
+    .map(({ _id, passed, failed, pending }) => ({
       level: _id,
       passed,
       failed,
       pending,
-    })).sort(
-      (a, b) => {
-        if (a.level < b.level) {
-          return -1;
-        }
-        if (a.level > b.level) {
-          return 1;
-        }
-        return 0;
+    }))
+    .sort((a, b) => {
+      if (a.level < b.level) {
+        return -1;
       }
-    );
+      if (a.level > b.level) {
+        return 1;
+      }
+      return 0;
+    });
 
-    return stats;
-  }
+  return stats;
+}
 
   // New method to get average scores by exam type
   async getAverageScoresByExamType() {
