@@ -13,7 +13,7 @@ export class Qualification extends Document {
   dateOfQualification: Date;
 }
 
-@Schema()
+@Schema({ timestamps: true })
 export class RegistrantsEntity extends Document {
   @Prop({ required: true })
   surname: string;
