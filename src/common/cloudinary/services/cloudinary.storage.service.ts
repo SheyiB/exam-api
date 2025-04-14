@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException, Logger, BadRequestException }
 import { v2 as cloudinary } from 'cloudinary';
 import { ConfigService } from '@nestjs/config';
 import { IFile } from 'src/common/file/interfaces/file.interface';
+import { Readable } from 'stream';
 import { ENUM_REQUEST_STATUS_CODE_ERROR } from 'src/common/constants';
 import { HelperStringService } from 'src/common/helper/services/helper.string.service';
 
@@ -24,7 +25,7 @@ export class CloudinaryStorageService {
   }
 
   async uploadFile(userId: string, file: Express.Multer.File): Promise<string> {
-    if (!file || !file.path) {
+    if (!file || (!file.path && !file.buffer)) {
       this.logger.error('Invalid file object provided for upload');
       throw new BadRequestException({
         statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
@@ -46,9 +47,14 @@ export class CloudinaryStorageService {
 
         this.logger.log(`Attempting upload for user ${userId}, attempt ${retryCount + 1}`);
         
-        const uploadResult = await this.cloudinary.uploader.upload(file.path, uploadOptions);
+        const uploadPromise = file.buffer
+        ? this.streamUpload(file.buffer, uploadOptions)
+        : this.cloudinary.uploader.upload(file.path, uploadOptions);
+
+        const uploadResult = await uploadPromise;
         
         this.logger.log(`Upload successful for user ${userId}`);
+       
         return uploadResult.secure_url;
       } catch (err: any) {
         retryCount++;
@@ -90,4 +96,16 @@ export class CloudinaryStorageService {
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  private streamUpload(buffer: Buffer, options: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const stream = this.cloudinary.uploader.upload_stream(options, (error, result) => {
+      if (result) resolve(result);
+      else reject(error);
+    });
+
+    Readable.from(buffer).pipe(stream);
+  });
+}
+
 }

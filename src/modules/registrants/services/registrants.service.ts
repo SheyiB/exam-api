@@ -17,6 +17,7 @@ import {
 } from 'src/common/constants';
 import { examType, examStatus } from '../../exams/repository/entities/exams.entity';
 import { ExamStatus } from 'src/modules/exams/dtos/exams.create.dto';
+import { CloudinaryStorageService } from 'src/common/cloudinary/services/cloudinary.storage.service';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -35,6 +36,7 @@ export class RegistrantsService implements IRegistrantsService {
   constructor(
     @InjectModel(RegistrantsEntity.name)
     private registrantsModel: Model<RegistrantsDoc>,
+    private readonly cloudinaryStorageService: CloudinaryStorageService,
   ) {}
 
   private generateExamNumber(registeredUsers: number, registrantExamType: string): string {
@@ -76,8 +78,10 @@ export class RegistrantsService implements IRegistrantsService {
   }
 
   async createRegistrants(
-    registrant: RegistrantCreateDto,
+    registrant: RegistrantCreateDto & { profilePicture?: Express.Multer.File }
   ): Promise<RegistrantsDoc> {
+    let profilePictureUrl: string | undefined;
+    
     const existingRegistrant = await this.registrantsModel.findOne({
       email: registrant.email,
     }).lean();
@@ -88,6 +92,21 @@ export class RegistrantsService implements IRegistrantsService {
         message: ENUM_RESPONSE_MESSAGE.REGISTRANT_EXIST,
       });
     }
+
+    if (registrant.profilePicture ) {
+      try {
+     
+        profilePictureUrl = await this.cloudinaryStorageService.uploadFile(
+          `${registrant.surname} ${registrant.firstName}`,
+          registrant.profilePicture
+        );
+      } catch (error) {
+        console.error('Profile picture upload failed:', error);
+        // Continue with user creation even if image upload fails
+        // You could throw an error here instead if image upload is critical
+      }
+    }
+
 
     const registeredUsers = await this.registrantsModel.countDocuments();
     registrant.exam.examNumber = this.generateExamNumber(registeredUsers, registrant.exam.examType);
@@ -103,7 +122,7 @@ export class RegistrantsService implements IRegistrantsService {
       }
     }
 
-
+    registrant.profilePassport = profilePictureUrl;
 
     const newRegistrant = new this.registrantsModel(registrant);
     return newRegistrant.save();
@@ -385,49 +404,57 @@ export class RegistrantsService implements IRegistrantsService {
     };
   }
 
-  async getExamStatusByLevel() {
-    // Get pass, fail, and pending counts for each level (present rank)
-    const examStatusByLevel = await this.registrantsModel.aggregate([
-      {
-        $group: {
-          _id: '$presentRank',
-          passed: {
-            $sum: {
-              $cond: [{ $eq: ['$exam.examStatus', examStatus.passed] }, 1, 0],
-            },
+ async getExamStatusByLevel(examTypeFilter?: examType) {
+  // Base aggregation pipeline
+  const pipeline = [
+    // Add match stage if examType is provided
+    ...(examTypeFilter ? [{ $match: { 'exam.examType': examTypeFilter } }] : []),
+    {
+      $group: {
+        _id: '$presentRank',
+        passed: {
+          $sum: {
+            $cond: [{ $eq: ['$exam.examStatus', examStatus.passed] }, 1, 0],
           },
-          failed: {
-            $sum: {
-              $cond: [{ $eq: ['$exam.examStatus', examStatus.failed] }, 1, 0],
-            },
+        },
+        failed: {
+          $sum: {
+            $cond: [{ $eq: ['$exam.examStatus', examStatus.failed] }, 1, 0],
           },
-          pending: {
-            $sum: {
-              $cond: [{ $eq: ['$exam.examStatus', examStatus.pending] }, 1, 0],
-            },
+        },
+        pending: {
+          $sum: {
+            $cond: [{ $eq: ['$exam.examStatus', examStatus.pending] }, 1, 0],
           },
         },
       },
-    ]);
+    },
+  ];
 
-    const stats = examStatusByLevel.map(({ _id, passed, failed, pending }) => ({
+  const examStatusByLevel = await this.registrantsModel.aggregate(pipeline);
+
+  const stats = examStatusByLevel
+    .map(({ _id, passed, failed, pending }) => ({
       level: _id,
       passed,
       failed,
       pending,
-    })).sort(
-      (a, b) => {
-        if (a.level < b.level) {
-          return -1;
-        }
-        if (a.level > b.level) {
-          return 1;
-        }
-        return 0;
+    }))
+    .sort((a, b) => {
+      if (a.level < b.level) {
+        return -1;
       }
-    );
+      if (a.level > b.level) {
+        return 1;
+      }
+      return 0;
+    });
 
-    return stats;
+  return stats;
+ }
+  
+  async setPassMark() {
+    
   }
 
   // New method to get average scores by exam type

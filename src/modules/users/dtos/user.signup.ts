@@ -5,65 +5,29 @@ import { IsNotEmpty, IsEmail, MaxLength, IsOptional } from 'class-validator';
 import { IFile } from 'src/common/file/interfaces/file.interface';
 
 export class UserSignupDto {
-  @ApiProperty({
-    example: faker.person.fullName(),
-    description: 'The full name of the user',
-    required: true,
-  })
+  @ApiProperty({ example: 'John Doe', description: 'Full name' })
   @IsNotEmpty()
   @MaxLength(100)
-  @Type(() => String)
   readonly fullname: string;
 
-  @ApiProperty({
-    example: faker.commerce.department(),
-    description: 'The department the user belongs to',
-    required: true,
-  })
+  @ApiProperty({ example: 'Engineering', description: 'Department' })
   @IsNotEmpty()
   @MaxLength(50)
-  @Type(() => String)
   readonly department: string;
 
-  @ApiProperty({
-    example: faker.name.jobTitle(),
-    description: 'The job title of the user',
-    required: true,
-  })
+  @ApiProperty({ example: 'Software Engineer', description: 'Job Title' })
   @IsNotEmpty()
   @MaxLength(50)
-  @Type(() => String)
   readonly jobTitle: string;
 
-  @ApiProperty({
-    example: faker.internet.email(),
-    description: 'The official work email address of the user',
-    required: true,
-  })
-  @IsEmail()
+  @ApiProperty({ example: 'john.doe@example.com', description: 'Work Email' })
   @IsNotEmpty()
+  @IsEmail()
   @MaxLength(100)
-  @Type(() => String)
   readonly workEmailAddress: string;
 
-  @ApiProperty({
-    description: 'Password for the user account',
-    example: `${faker.string.alphanumeric(5).toLowerCase()}${faker.string
-      .alphanumeric(5)
-      .toUpperCase()}@@!123`,
-    required: true,
-  })
+  @ApiProperty({ example: 'Secret123@@!', description: 'Password' })
   @IsNotEmpty()
   @MaxLength(50)
   readonly password: string;
-
-
-  @ApiProperty({
-    description: 'The profile picture of the user',
-    required: false,
-    type: 'string', // Use string as the type
-    format: 'binary', // Specify binary format
-  })
-  @IsOptional()
-  readonly profilePicture: IFile;
 }
