@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsString, IsNotEmpty, IsBoolean, IsEmail, IsOptional, IsDate, ValidateNested, IsArray } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
+import { IsString, IsNotEmpty, IsBoolean, IsEmail, IsOptional, IsDate, ValidateNested, IsArray,  } from 'class-validator';
 import { ExamCreateDto } from 'src/modules/exams/dtos/exams.create.dto';
 
 export class QualificationDto {
@@ -66,6 +66,14 @@ export class RegistrantCreateDto {
   @IsString()
   @IsOptional()
   staffVerificationNumber?: string;
+
+  @ApiPropertyOptional({
+    example: '56752358208',
+    description: 'NIN number of the registrant',
+  })
+  @IsString()
+  @IsOptional()
+  nin?: string;
 
   @ApiProperty({
     example: 'Male',
@@ -158,6 +166,7 @@ export class RegistrantCreateDto {
     description: 'The disability status of the registrant',
     required: true,
   })
+  @Transform(({ value }) => value === 'true')
   @IsBoolean()
   disability: boolean;
 
@@ -165,6 +174,13 @@ export class RegistrantCreateDto {
     type: [QualificationDto],
     description: 'The qualifications of the registrant',
   })
+    @Transform(({ value }) => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+})
   @ValidateNested({ each: true })
   @IsArray()
   @Type(() => QualificationDto)
@@ -220,6 +236,13 @@ export class RegistrantCreateDto {
     description: 'The examination details of the registrant',
     type: ExamCreateDto,
   })
+    @Transform(({ value }) => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+})
   @ValidateNested()
   @Type(() => ExamCreateDto)
   @IsOptional()

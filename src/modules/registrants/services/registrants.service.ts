@@ -17,6 +17,7 @@ import {
 } from 'src/common/constants';
 import { examType, examStatus } from '../../exams/repository/entities/exams.entity';
 import { ExamStatus } from 'src/modules/exams/dtos/exams.create.dto';
+import { CloudinaryStorageService } from 'src/common/cloudinary/services/cloudinary.storage.service';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -35,6 +36,7 @@ export class RegistrantsService implements IRegistrantsService {
   constructor(
     @InjectModel(RegistrantsEntity.name)
     private registrantsModel: Model<RegistrantsDoc>,
+    private readonly cloudinaryStorageService: CloudinaryStorageService,
   ) {}
 
   private generateExamNumber(registeredUsers: number, registrantExamType: string): string {
@@ -76,8 +78,10 @@ export class RegistrantsService implements IRegistrantsService {
   }
 
   async createRegistrants(
-    registrant: RegistrantCreateDto,
+    registrant: RegistrantCreateDto & { profilePicture?: Express.Multer.File }
   ): Promise<RegistrantsDoc> {
+    let profilePictureUrl: string | undefined;
+    
     const existingRegistrant = await this.registrantsModel.findOne({
       email: registrant.email,
     }).lean();
@@ -88,6 +92,21 @@ export class RegistrantsService implements IRegistrantsService {
         message: ENUM_RESPONSE_MESSAGE.REGISTRANT_EXIST,
       });
     }
+
+    if (registrant.profilePicture ) {
+      try {
+     
+        profilePictureUrl = await this.cloudinaryStorageService.uploadFile(
+          `${registrant.surname} ${registrant.firstName}`,
+          registrant.profilePicture
+        );
+      } catch (error) {
+        console.error('Profile picture upload failed:', error);
+        // Continue with user creation even if image upload fails
+        // You could throw an error here instead if image upload is critical
+      }
+    }
+
 
     const registeredUsers = await this.registrantsModel.countDocuments();
     registrant.exam.examNumber = this.generateExamNumber(registeredUsers, registrant.exam.examType);
@@ -103,7 +122,7 @@ export class RegistrantsService implements IRegistrantsService {
       }
     }
 
-
+    registrant.profilePassport = profilePictureUrl;
 
     const newRegistrant = new this.registrantsModel(registrant);
     return newRegistrant.save();
@@ -432,7 +451,11 @@ export class RegistrantsService implements IRegistrantsService {
     });
 
   return stats;
-}
+ }
+  
+  async setPassMark() {
+    
+  }
 
   // New method to get average scores by exam type
   async getAverageScoresByExamType() {

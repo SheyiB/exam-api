@@ -6,12 +6,14 @@ import {
   RegistrantsEntity,
   RegistrantsSchema,
 } from './repository/entities/registrants.entity';
+import { CloudinaryModule } from 'src/common/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: RegistrantsEntity.name, schema: RegistrantsSchema },
     ]),
+    CloudinaryModule,
   ],
   controllers: [RegistrantsController],
   providers: [RegistrantsService],

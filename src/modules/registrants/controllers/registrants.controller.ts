@@ -10,6 +10,8 @@ import {
   Query,
   Delete,
   ValidationPipe,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,12 +20,15 @@ import {
   ApiQuery,
   ApiParam,
   ApiBody,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { RegistrantCreateDto } from '../dtos/registrants.create.dto';
+import { RegistrantCreateDtoWithFile } from '../dtos/registrants.createWithFile.dto';
 import { PartialType } from '@nestjs/swagger';
 import { RegistrantsService } from '../services/registrants.service';
 import { IResponse } from 'src/common/response/interface/response.interface';
 import { examType } from 'src/modules/exams/repository/entities/exams.entity';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 class PaginationQueryDto {
   page?: string;
@@ -43,18 +48,29 @@ class PaginationQueryDto {
 })
 export class RegistrantsController {
   constructor(private readonly registrantsService: RegistrantsService) {}
-
+  @Post('/register')
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new candidate' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Successfully registered' })
-  @HttpCode(HttpStatus.CREATED)
-  @Post('/register')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('profilePicture'))
+  @ApiBody({
+    description: 'Registration payload including profile picture',
+    type: RegistrantCreateDtoWithFile,
+  })
   async register(
-    @Body(new ValidationPipe({ transform: true })) 
-    registrant: RegistrantCreateDto
-  ): Promise<IResponse> {
-    const createdRegistrant = await this.registrantsService.createRegistrants(registrant);
+    @UploadedFile() file: Express.Multer.File,
+    @Body(new ValidationPipe({ transform: true })) registrant: RegistrantCreateDto,
+   ): Promise<any> {
+  
+    const created = await this.registrantsService.createRegistrants({
+      ...registrant,
+      profilePicture: file,
+    });
+
     return {
-      data: createdRegistrant,
+      message: 'Successfully registered',
+      data: created,
     };
   }
 

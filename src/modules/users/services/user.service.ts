@@ -38,8 +38,9 @@ export class UserService implements IUserService {
     const hashedPassword = await this.hashPassword(data.password);
 
     // Only upload if profilePicture exists and has the expected properties
-    if (data.profilePicture && data.profilePicture.path) {
+    if (data.profilePicture ) {
       try {
+      
         profilePictureUrl = await this.cloudinaryStorageService.uploadFile(
           data.fullname,
           data.profilePicture
@@ -65,6 +66,7 @@ export class UserService implements IUserService {
       department: createdUser.department,
       jobTitle: createdUser.jobTitle,
       workEmailAddress: createdUser.workEmailAddress,
+      profilePicture: createdUser.profilePicture,
     };
   }
   async login(data: UserLoginDto): Promise<{ token: string; userName: string; email: string }> {
