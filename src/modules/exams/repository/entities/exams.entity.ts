@@ -36,6 +36,17 @@ export class ExamsEntity extends Document {
   professionalPaperScore: number;
 
   @Prop({})
+  interviewScore: number;
+
+  @Prop({})
+  appraisalScore: number;
+
+  @Prop({})
+  seniorityScore: number;
+
+  @Prop({ })
+
+  @Prop({})
   totalScore: number;
 
   @Prop({  })

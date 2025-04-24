@@ -61,6 +61,33 @@ export class ExamCreateDto {
     @IsOptional()
   professionalPaperScore: number;
 
+   @ApiProperty({
+    example: 80,
+    description: 'Score obtained in interview paper',
+  })
+  @IsNumber()
+    
+    @IsOptional()
+   interviewScore: number;
+  
+   @ApiProperty({
+    example: 80,
+    description: 'Score obtained in Appraisal',
+  })
+  @IsNumber()
+    
+    @IsOptional()
+   appraisalScore: number;
+  
+  @ApiProperty({
+    example: 80,
+    description: 'Score obtained based on seniority',
+  })
+  @IsNumber()
+    
+    @IsOptional()
+   seniorityScore: number;
+
 
   @IsEmpty()
   totalScore: number;
