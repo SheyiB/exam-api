@@ -1,39 +1,52 @@
-// import { Injectable } from '@nestjs/common';
-// import { InjectModel } from '@nestjs/mongoose';
-// import { Model } from 'mongoose';
-// import { IExamsService } from '../interfaces/exams.service.interface';
-// import { IExams } from '../interfaces/exams.interface';
-// import { ExamCreateDto } from '../dtos/exams.create.dto';
-// import { UpdateExamsDto } from '../dtos/exams.update.dto';
-// import { Exams, ExamsDocument } from '../schemas';
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { ExamsDoc, ExamsEntity } from '../repository/entities/exams.entity';
+import { ExamPassScore } from '../repository/entities/exam.passScore.entity';
+import { NotFoundException } from '@nestjs/common';
 
-// @Injectable()
-// export class ExamsService implements IExamsService {
-//   constructor(
-//     @InjectModel(Exams.name)
-//     private readonly examsModel: Model<ExamsDocument>,
-//   ) {}
+@Injectable()
+export class ExamsService {
+  constructor(
+    @InjectModel(ExamsEntity.name)
+    private readonly examsModel: Model<ExamsDoc>,
+    @InjectModel(ExamPassScore.name)
+    private examPassScoreModel: Model<ExamPassScore>,
+  ) {}
 
-//   async create(dto: CreateExamsDto): Promise<IExams> {
-//     const created = new this.examsModel(dto);
-//     return created.save();
-//   }
+  async createExamScore(examType: string, passScore: number): Promise<ExamPassScore> {
+    const newExamScore = new this.examPassScoreModel({ 
+      examType, 
+      passScore 
+    });
+    return newExamScore.save();
+  }
 
-//   async findAll(): Promise<IExams[]> {
-//     return this.examsModel.find().exec();
-//   }
+  async getAllExamPassScores(): Promise<ExamPassScore[]> {
+    return this.examPassScoreModel.find().lean().exec();
+  }
 
-//   async findOne(id: string): Promise<IExams> {
-//     return this.examsModel.findById(id).exec();
-//   }
+  async getExamPassScore(examType: string): Promise<ExamPassScore | null> {
+    const passScore = await this.examPassScoreModel.findOne({ examType }).lean().exec();
+    if (!passScore) {
+      throw new NotFoundException(`Exam pass score for type ${examType} not found`);
+    }
+    return passScore;
+  }
 
-//   async update(id: string, dto: UpdateExamsDto): Promise<IExams> {
-//     return this.examsModel
-//       .findByIdAndUpdate(id, dto, { new: true })
-//       .exec();
-//   }
-
-//   async remove(id: string): Promise<IExams> {
-//     return this.examsModel.findByIdAndDelete(id).exec();
-//   }
-// }
+  async updateExamScore(examType: string, passScore: number): Promise<ExamPassScore | null> {
+    const currentDate = new Date();
+    
+    return this.examPassScoreModel.findOneAndUpdate(
+      { examType },
+      { 
+        passScore,
+        updatedAt: currentDate 
+      },
+      { 
+        new: true,
+        lean: true
+      },
+    );
+  }
+}

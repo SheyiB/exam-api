@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config'; // Import ConfigMo
 import { RegistrantsModule } from 'src/modules/registrants/registrants.module';
 import { CommonModule } from 'src/common/common.module';
 import { UserModule } from 'src/modules/users/user.module';
+import { ExamsModule } from 'src/modules/exams/exams.module';
 
 
 @Module({
@@ -21,6 +22,7 @@ import { UserModule } from 'src/modules/users/user.module';
     RegistrantsModule,
     CommonModule,
     UserModule,
+    ExamsModule,
   ],
 })
 export class AppModule {}

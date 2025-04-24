@@ -73,6 +73,9 @@ export class RegistrantsEntity extends Document {
   email: string;
 
   @Prop({ required: true })
+  nin: string;
+
+  @Prop({ required: true })
   phone: string;
 
   @Prop({ required: true })
