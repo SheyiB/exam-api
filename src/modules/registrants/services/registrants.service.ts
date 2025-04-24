@@ -108,7 +108,7 @@ export class RegistrantsService implements IRegistrantsService {
     }
 
 
-    const registeredUsers = await this.registrantsModel.countDocuments();
+    const registeredUsers = await this.registrantsModel.countDocuments({ 'exam.examType': registrant.exam.examType });
     registrant.exam.examNumber = this.generateExamNumber(registeredUsers, registrant.exam.examType);
     
     // Note: We don't need to manually set the examStatus as the pre-save middleware will handle it
