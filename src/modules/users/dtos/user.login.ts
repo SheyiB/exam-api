@@ -10,7 +10,6 @@ export class UserLoginDto {
   })
   @IsEmail()
   @IsNotEmpty()
-  @MaxLength(100)
   @Type(() => String)
   readonly email: string;
 

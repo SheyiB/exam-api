@@ -12,6 +12,7 @@ export default async function (app: NestApplication) {
     .setDescription('The Exam API documentation')
     .setVersion('1.0')
     .addServer('/')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, documentBuild, {
