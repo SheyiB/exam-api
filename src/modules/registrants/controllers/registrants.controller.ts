@@ -7,6 +7,7 @@ import {
   Get,
   Put,
   Param,
+  Patch,
   Query,
   Delete,
   ValidationPipe,
@@ -33,6 +34,7 @@ import { IResponse } from 'src/common/response/interface/response.interface';
 import { examType } from 'src/modules/exams/repository/entities/exams.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/common/auth/auth.guard';
+import { RegistrantExamUpdateDto } from '../dtos/registrants.update-exam.dto';
 import { Request } from 'express';
 
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
@@ -108,8 +110,7 @@ export class RegistrantsController {
       @CurrentUser() user: User
    
   ): Promise<IResponse> {
-    console.log(user);
-    const updatedRegistrant = await this.registrantsService.updateRegistrants(
+    const updatedRegistrant = await this.registrantsService.updateRegistrant(
       registrantId,
       registrant,
       user.userId
@@ -119,6 +120,32 @@ export class RegistrantsController {
       data: updatedRegistrant,
     };
   }
+
+  @ApiOperation({ summary: 'Update registrant exam details only' })
+  @ApiBody({ type: RegistrantExamUpdateDto })
+  @ApiParam({ name: 'registrantId', description: 'Registrant ID' })
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @Patch('/:registrantId/exam')
+  async updateRegistrantExam(
+    @Body(new ValidationPipe({ transform: true }))
+    registrantExamDto: RegistrantExamUpdateDto,
+    @Param('registrantId') registrantId: string,
+    @CurrentUser() user: User,
+  ): Promise<IResponse> {
+
+    const updatedRegistrant = await this.registrantsService.updateRegistrantExam(
+      registrantId,
+      registrantExamDto,
+      user.userId,
+    );
+
+    return {
+      data: updatedRegistrant,
+    };
+  }
+
+
 
   @ApiOperation({ summary: 'Get all registrants with pagination' })
   @ApiQuery({ name: 'page', required: false, type: String })

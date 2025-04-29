@@ -11,6 +11,7 @@ export enum ExamType {
 export enum ExamStatus {
   PASSED = 'passed',
   FAILED = 'failed',
+  PENDING = 'pending',
 }
 
 export class ExamCreateDto {
