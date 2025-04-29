@@ -95,6 +95,9 @@ export class UserService implements IUserService {
     const payload = {
       sub: user._id,
       email: user.workEmailAddress,
+      fullname: user.fullname,
+      department: user.department,
+      jobTitle: user.jobTitle,
     };
 
     const token = this.jwtService.sign(payload);
@@ -106,6 +109,25 @@ export class UserService implements IUserService {
       token,
       userName,
       email,
+    };
+  }
+
+  async findUser(id: string): Promise<Partial<UserDoc>> { 
+    const user = await this.userModel.findOne({ $or: [{ _id: id }, { workEmailAddress: id }] });
+
+    if (!user) {
+      throw new UnprocessableEntityException({
+        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+        message: ENUM_RESPONSE_MESSAGE.USER_NOT_FOUND,
+      });
+    }
+
+    return {
+      _id: user._id,
+      fullname: user.fullname,
+      department: user.department,
+      jobTitle: user.jobTitle,
+      workEmailAddress: user.workEmailAddress,
     };
   }
 

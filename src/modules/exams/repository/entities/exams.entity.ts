@@ -1,4 +1,4 @@
-import { Document } from 'mongoose';
+import mongoose, { Document } from 'mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 export const ExamsDatabaseName = 'exams';
@@ -32,25 +32,44 @@ export class ExamsEntity extends Document {
   @Prop({  })
   generalPaperScore: number;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'UserEntity' })
+  generalPaperScoreUploadedBy: mongoose.Types.ObjectId;
+
   @Prop({  })
   professionalPaperScore: number;
+
+   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'UserEntity' })
+  professionalPaperScoreUploadedBy: mongoose.Types.ObjectId;
 
   @Prop({})
   interviewScore: number;
 
+   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'UserEntity' })
+  interviewScoreUploadedBy: mongoose.Types.ObjectId;
+
   @Prop({})
   appraisalScore: number;
+
+   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'UserEntity' })
+  appraisalScoreUploadedBy: mongoose.Types.ObjectId;
 
   @Prop({})
   seniorityScore: number;
 
-  @Prop({ })
+   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'UserEntity' })
+  seniorityScoreUploadedBy: mongoose.Types.ObjectId;
 
   @Prop({})
   totalScore: number;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'UserEntity' })
+  totalScoreUploadedBy: mongoose.Types.ObjectId;
+
   @Prop({  })
   remark: string;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'UserEntity' })
+  remarkUploadedBy: mongoose.Types.ObjectId;
 
   @Prop({  })
   examNumber: string;

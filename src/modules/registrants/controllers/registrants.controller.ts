@@ -7,11 +7,14 @@ import {
   Get,
   Put,
   Param,
+  Patch,
   Query,
   Delete,
   ValidationPipe,
   UseInterceptors,
   UploadedFile,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -21,6 +24,7 @@ import {
   ApiParam,
   ApiBody,
   ApiConsumes,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { RegistrantCreateDto } from '../dtos/registrants.create.dto';
 import { RegistrantCreateDtoWithFile } from '../dtos/registrants.createWithFile.dto';
@@ -29,6 +33,24 @@ import { RegistrantsService } from '../services/registrants.service';
 import { IResponse } from 'src/common/response/interface/response.interface';
 import { examType } from 'src/modules/exams/repository/entities/exams.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { JwtAuthGuard } from 'src/common/auth/auth.guard';
+import { RegistrantExamUpdateDto } from '../dtos/registrants.update-exam.dto';
+import { Request } from 'express';
+
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+
+export const CurrentUser = createParamDecorator(
+  (data: unknown, ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest();
+    return request.user;
+  },
+);
+
+interface User {
+  userId: string;
+  username: string;
+  roles: string[];
+}
 
 class PaginationQueryDto {
   page?: string;
@@ -46,6 +68,7 @@ class PaginationQueryDto {
   version: '1',
   path: '/exam-api',
 })
+@ApiBearerAuth()
 export class RegistrantsController {
   constructor(private readonly registrantsService: RegistrantsService) {}
   @Post('/register')
@@ -75,25 +98,54 @@ export class RegistrantsController {
   }
 
   @ApiOperation({ summary: 'Update registrant details' })
-    @ApiBody({ type: PartialType(RegistrantCreateDto) }) 
+  @ApiBody({ type: PartialType(RegistrantCreateDto) }) 
   @ApiParam({ name: 'registrantId', description: 'Registrant ID' })
   @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard) 
   @Put('/:registrantId')
   async updateRegistrant(
      @Body(new ValidationPipe({ transform: true })) 
     registrant: Partial<RegistrantCreateDto>,
     @Param('registrantId') registrantId: string,
+      @CurrentUser() user: User
    
   ): Promise<IResponse> {
-    const updatedRegistrant = await this.registrantsService.updateRegistrants(
+    const updatedRegistrant = await this.registrantsService.updateRegistrant(
       registrantId,
       registrant,
+      user.userId
     );
 
     return {
       data: updatedRegistrant,
     };
   }
+
+  @ApiOperation({ summary: 'Update registrant exam details only' })
+  @ApiBody({ type: RegistrantExamUpdateDto })
+  @ApiParam({ name: 'registrantId', description: 'Registrant ID' })
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @Patch('/:registrantId/exam')
+  async updateRegistrantExam(
+    @Body(new ValidationPipe({ transform: true }))
+    registrantExamDto: RegistrantExamUpdateDto,
+    @Param('registrantId') registrantId: string,
+    @CurrentUser() user: User,
+  ): Promise<IResponse> {
+
+    const updatedRegistrant = await this.registrantsService.updateRegistrantExam(
+      registrantId,
+      registrantExamDto,
+      user.userId,
+    );
+
+    return {
+      data: updatedRegistrant,
+    };
+  }
+
+
 
   @ApiOperation({ summary: 'Get all registrants with pagination' })
   @ApiQuery({ name: 'page', required: false, type: String })

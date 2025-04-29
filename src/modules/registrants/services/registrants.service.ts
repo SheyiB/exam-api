@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   UnprocessableEntityException,
   NotFoundException,
@@ -15,10 +15,13 @@ import {
   ENUM_REQUEST_STATUS_CODE_ERROR,
   ENUM_RESPONSE_MESSAGE,
 } from 'src/common/constants';
-import { examType, examStatus } from '../../exams/repository/entities/exams.entity';
+import { examType, examStatus, ExamsDoc, ExamsEntity } from '../../exams/repository/entities/exams.entity';
 import { ExamStatus } from 'src/modules/exams/dtos/exams.create.dto';
 import { CloudinaryStorageService } from 'src/common/cloudinary/services/cloudinary.storage.service';
-
+import { RegistrantMapper } from '../mappers/registrant.mapper';
+import { RegistrantExamUpdateDto } from '../dtos/registrants.update-exam.dto';
+import { ExamUpdateDto } from 'src/modules/exams/dtos/exams.update.dto';
+import { RegistrantUpdateDto } from '../dtos/registrants.update.dto';
 interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -36,6 +39,9 @@ export class RegistrantsService implements IRegistrantsService {
   constructor(
     @InjectModel(RegistrantsEntity.name)
     private registrantsModel: Model<RegistrantsDoc>,
+
+    @InjectModel(ExamsEntity.name)
+    private examsModel: Model<ExamsDoc>,
     private readonly cloudinaryStorageService: CloudinaryStorageService,
   ) {}
 
@@ -77,87 +83,228 @@ export class RegistrantsService implements IRegistrantsService {
     };
   }
 
-  async createRegistrants(
-    registrant: RegistrantCreateDto & { profilePicture?: Express.Multer.File }
-  ): Promise<RegistrantsDoc> {
-    let profilePictureUrl: string | undefined;
-    
-    const existingRegistrant = await this.registrantsModel.findOne({
-      email: registrant.email,
-    }).lean();
+ async createRegistrants(
+  registrant: RegistrantCreateDto & { profilePicture?: Express.Multer.File }
+): Promise<RegistrantsDoc> {
+  let profilePictureUrl: string | undefined;
 
-    if (existingRegistrant) {
-      throw new UnprocessableEntityException({
-        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
-        message: ENUM_RESPONSE_MESSAGE.REGISTRANT_EXIST,
-      });
-    }
+  const existingRegistrant = await this.registrantsModel.findOne({
+    email: registrant.email,
+  }).lean();
 
-    if (registrant.profilePicture ) {
-      try {
-     
-        profilePictureUrl = await this.cloudinaryStorageService.uploadFile(
-          `${registrant.surname} ${registrant.firstName}`,
-          registrant.profilePicture
-        );
-      } catch (error) {
-        console.error('Profile picture upload failed:', error);
-        // Continue with user creation even if image upload fails
-        // You could throw an error here instead if image upload is critical
-      }
-    }
-
-
-    const registeredUsers = await this.registrantsModel.countDocuments({ 'exam.examType': registrant.exam.examType });
-    registrant.exam.examNumber = this.generateExamNumber(registeredUsers, registrant.exam.examType);
-    
-    // Note: We don't need to manually set the examStatus as the pre-save middleware will handle it
-
-    if (registrant.exam.generalPaperScore && registrant.exam.professionalPaperScore) {
-      registrant.exam.totalScore = registrant.exam.generalPaperScore + registrant.exam.professionalPaperScore;
-      if (registrant.exam.totalScore < 50) {
-        registrant.exam.examStatus = ExamStatus.FAILED;
-      } else if (registrant.exam.totalScore >= 50) {
-        registrant.exam.examStatus = ExamStatus.PASSED;
-      }
-    }
-
-    registrant.profilePassport = profilePictureUrl;
-
-    const newRegistrant = new this.registrantsModel(registrant);
-    return newRegistrant.save();
+  if (existingRegistrant) {
+    throw new UnprocessableEntityException({
+      statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+      message: ENUM_RESPONSE_MESSAGE.REGISTRANT_EXIST,
+    });
   }
 
-  async updateRegistrants(
-    id: string,
-    registrant: Partial<RegistrantCreateDto>,
-  ): Promise<RegistrantsDoc> {
-    // The pre-update middleware will automatically update the examStatus based on scores
-
-     if (registrant.exam.generalPaperScore && registrant.exam.professionalPaperScore) {
-      registrant.exam.totalScore = registrant.exam.generalPaperScore + registrant.exam.professionalPaperScore;
-      if (registrant.exam.totalScore < 50) {
-        registrant.exam.examStatus = ExamStatus.FAILED;
-      } else if (registrant.exam.totalScore >= 50) {
-        registrant.exam.examStatus = ExamStatus.PASSED;
-      }
-     }
-    
-    const existingRegistrant = await this.registrantsModel.findByIdAndUpdate(
-      id,
-      registrant,
-      { new: true }
-    );
-
-    if (!existingRegistrant) {
-      throw new NotFoundException({
-        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_NOT_FOUND_ERROR,
-        message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_FOUND,
-      });
+  if (registrant.profilePicture) {
+    try {
+      profilePictureUrl = await this.cloudinaryStorageService.uploadFile(
+        `${registrant.surname} ${registrant.firstName}`,
+        registrant.profilePicture
+      );
+    } catch (error) {
+      console.error('Profile picture upload failed:', error);
     }
-
-    return existingRegistrant;
   }
+
+  // Generate unique exam number
+  const registeredUsers = await this.registrantsModel.countDocuments({
+    'exam.examType': registrant.exam.examType,
+  });
+
+  const examNumber = this.generateExamNumber(
+    registeredUsers,
+    registrant.exam.examType
+  );
+
+  // Only basic exam info on creation
+  const newExam = await this.examsModel.create({
+    examType: registrant.exam.examType,
+    examDate: registrant.exam.examDate,
+    examNumber,
+    examStatus: ExamStatus.PENDING,
+  });
+
+  // Create registrant with reference to exam
+  const newRegistrant = new this.registrantsModel({
+    ...registrant,
+    exam: newExam._id,
+    profilePassport: profilePictureUrl,
+  });
+
+  return newRegistrant.save();
+}
+
+
+  // async updateRegistrants(
+  //   id: string,
+  //   registrant: Partial<RegistrantCreateDto>,
+  //   uploader: string
+  // ): Promise<RegistrantsDoc> {
+  //   // The pre-update middleware will automatically update the examStatus based on scores
+
+  //     const updateObject: any = { ...registrant };
+    
+  //   if (registrant.exam.generalPaperScore && registrant.exam.professionalPaperScore) {
+  //     registrant.exam.totalScore = registrant.exam.generalPaperScore + registrant.exam.professionalPaperScore;
+  //     if (registrant.exam.totalScore < 50) {
+  //       registrant.exam.examStatus = ExamStatus.FAILED;
+  //     } else if (registrant.exam.totalScore >= 50) {
+  //       registrant.exam.examStatus = ExamStatus.PASSED;
+  //     }
+  //    }
+    
+  //   if (registrant.exam) {
+  //     updateObject.exam = RegistrantMapper.mapExamDtoToUpdate(registrant.exam, uploader);
+  //   }
+    
+  //   const existingRegistrant = await this.registrantsModel.findByIdAndUpdate(
+  //     id,
+  //     updateObject,
+  //     { new: true }
+  //   );
+
+  //   if (!existingRegistrant) {
+  //     throw new NotFoundException({
+  //       statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_NOT_FOUND_ERROR,
+  //       message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_FOUND,
+  //     });
+  //   }
+
+  //   return existingRegistrant;
+  // }
+  async updateRegistrant(
+  registrantId: string,
+  updateDto: RegistrantUpdateDto,
+  uploaderId: string
+): Promise<RegistrantsDoc> {
+  // Retrieve the registrant by ID
+  const registrant = await this.registrantsModel.findById(registrantId);
+
+  if (!registrant) {
+    throw new NotFoundException({
+      statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_NOT_FOUND_ERROR,
+      message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_FOUND,
+    });
+  }
+
+  // Apply the fields from the DTO to the registrant
+  const updatedRegistrant = { ...registrant.toObject(), ...updateDto };
+
+  // Check if exam is being updated
+  if (updateDto.exam) {
+    // THROW ERROR
+    throw new UnprocessableEntityException({
+      statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+      message: ENUM_RESPONSE_MESSAGE.INVALID_ROUTE,
+    });
+  }
+
+  // Handle updating profile picture
+  if (updateDto.profilePicture) {
+    try {
+      updatedRegistrant.profilePassport = await this.cloudinaryStorageService.uploadFile(
+        `${updatedRegistrant.surname} ${updatedRegistrant.firstName}`,
+        updateDto.profilePicture
+      );
+    } catch (error) {
+      console.error('Profile picture upload failed:', error);
+      // Continue with registrant update even if the image upload fails
+    }
+  }
+
+  // Save the updated registrant entity
+  const savedRegistrant = await this.registrantsModel.findByIdAndUpdate(
+    registrantId,
+    updatedRegistrant,
+    { new: true }
+  );
+
+  return savedRegistrant;
+}
+
+
+
+//   async updateRegistrantExam(
+//   id: string,
+//   dto: RegistrantExamUpdateDto,
+//   uploader: string
+// ) {
+//   const update: any = {};
+
+//   if (dto.exam) {
+//     update.exam = RegistrantMapper.mapExamDtoToUpdate(dto.exam, uploader);
+//   }
+
+//   return this.registrantsModel.findByIdAndUpdate(id, update, { new: true });
+  // }
+ async updateRegistrantExam(
+  registrantId: string,
+  examUpdateDto: RegistrantExamUpdateDto,
+  uploaderId: string,
+): Promise<ExamsDoc> {
+  const registrant = await this.registrantsModel.findById(registrantId).populate({
+  path: 'exam',
+  model: 'ExamsEntity'
+});
+
+  if (!registrant || !registrant.exam) {
+    throw new NotFoundException({
+      statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_NOT_FOUND_ERROR,
+      message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_FOUND,
+    });
+  }
+
+  const exam = await this.examsModel.findById(registrant.exam._id);
+  if (!exam || !examUpdateDto.exam) {
+    throw new NotFoundException({
+      statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_NOT_FOUND_ERROR,
+      message: 'Exam record or update payload missing',
+    });
+  }
+
+  const updatableFields = {
+    generalPaperScore: 'generalPaperScoreUploadedBy',
+    professionalPaperScore: 'professionalPaperScoreUploadedBy',
+    interviewScore: 'interviewScoreUploadedBy',
+    appraisalScore: 'appraisalScoreUploadedBy',
+    seniorityScore: 'seniorityScoreUploadedBy',
+  };
+
+  const updated = examUpdateDto.exam;
+
+  for (const [scoreKey, uploaderKey] of Object.entries(updatableFields)) {
+    const score = updated[scoreKey as keyof ExamUpdateDto];
+    if (typeof score === 'number') {
+      (exam as any)[scoreKey] = score;
+      (exam as any)[uploaderKey] = uploaderId;
+    }
+  }
+
+  if (updated.remark !== undefined) {
+    exam.remark = updated.remark;
+  }
+
+  // Recalculate totalScore
+  const total = Object.keys(updatableFields)
+    .map(key => (exam as any)[key])
+    .filter(score => typeof score === 'number')
+    .reduce((sum, val) => sum + val, 0);
+
+  exam.totalScore = total;
+  exam.totalScoreUploadedBy = new Types.ObjectId(uploaderId);
+
+  exam.examStatus = total < 50 ? ExamStatus.FAILED : ExamStatus.PASSED;
+
+  await exam.save();
+  return exam;
+}
+
+
+
 
   async findAllRegistrants(query: {
     limit?: string;
@@ -224,18 +371,33 @@ export class RegistrantsService implements IRegistrantsService {
     };
   }
 
-  async findOneRegistrant(id: string): Promise<RegistrantsDoc> {
-    const existingRegistrant = await this.registrantsModel.findById(id).lean();
+ async findOneRegistrant(id: string): Promise<RegistrantsDoc> {
+  const existingRegistrant = await this.registrantsModel
+    .findById(id)
+    .populate({
+      path: 'exam',
+      populate: [
+        { path: 'generalPaperScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
+        { path: 'professionalPaperScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
+        { path: 'interviewScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
+        { path: 'appraisalScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
+        { path: 'seniorityScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
+        { path: 'totalScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
+        { path: 'remarkUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
+      ]
+    })
+    .lean();
 
-    if (!existingRegistrant) {
-      throw new NotFoundException({
-        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_NOT_FOUND_ERROR,
-        message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_FOUND,
-      });
-    }
-
-    return existingRegistrant;
+  if (!existingRegistrant) {
+    throw new NotFoundException({
+      statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_NOT_FOUND_ERROR,
+      message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_FOUND,
+    });
   }
+
+  return existingRegistrant;
+}
+
 
   async removeRegistrant(id: string): Promise<RegistrantsDoc> {
     const deletedRegistrant = await this.registrantsModel.findByIdAndDelete(id);
@@ -502,4 +664,5 @@ export class RegistrantsService implements IRegistrantsService {
 
     return averageScores;
   }
+
 }
