@@ -110,7 +110,6 @@ export class RegistrantsService implements IRegistrantsService {
     }
   }
 
-  // Generate unique exam number
   const registeredUsers = await this.registrantsModel.countDocuments({
     'exam.examType': registrant.exam.examType,
   });
@@ -120,7 +119,6 @@ export class RegistrantsService implements IRegistrantsService {
     registrant.exam.examType
   );
 
-  // Only basic exam info on creation
   const newExam = await this.examsModel.create({
     examType: registrant.exam.examType,
     examDate: registrant.exam.examDate,
@@ -128,16 +126,19 @@ export class RegistrantsService implements IRegistrantsService {
     examStatus: ExamStatus.PENDING,
   });
 
-  // Create registrant with reference to exam
-  const newRegistrant = new this.registrantsModel({
+  const newRegistrant = await this.registrantsModel.create({
     ...registrant,
     exam: newExam._id,
     profilePassport: profilePictureUrl,
   });
 
-  return newRegistrant.save();
-}
+  const populatedRegistrant = await this.registrantsModel
+    .findById(newRegistrant._id)
+    .populate('exam')
+    .lean();
 
+  return populatedRegistrant;
+}
 
   // async updateRegistrants(
   //   id: string,
@@ -226,8 +227,6 @@ export class RegistrantsService implements IRegistrantsService {
   return savedRegistrant;
 }
 
-
-
 //   async updateRegistrantExam(
 //   id: string,
 //   dto: RegistrantExamUpdateDto,
@@ -303,73 +302,125 @@ export class RegistrantsService implements IRegistrantsService {
   return exam;
 }
 
+async findAllRegistrants(query: {
+  limit?: string;
+  page?: string;
+  search?: string;
+  [key: string]: any;
+}): Promise<PaginatedResponse<RegistrantsDoc>> {
+  const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+  const page = Math.max(parseInt(query.page || '1', 10), 1);
+  const skip = (page - 1) * limit;
 
+  const { limit: _, page: __, search, ...filterQuery } = query;
 
+  const matchStage: any = { ...filterQuery };
 
-  async findAllRegistrants(query: {
-    limit?: string;
-    page?: string;
-    search?: string;
-    [key: string]: any;
-  }): Promise<PaginatedResponse<RegistrantsDoc>> {
-    const limit = Math.min(parseInt(query.limit || '20', 10), 100);
-    const page = Math.max(parseInt(query.page || '1', 10), 1);
-    const skip = (page - 1) * limit;
+  const searchRegex = search ? new RegExp(search, 'i') : null;
 
-    // Remove pagination and search params from query
-    const { limit: _, page: __, search, ...filterQuery } = query;
-
-    // Build search query if search parameter is provided
-    let searchQuery = {};
-    if (search) {
-      searchQuery = {
-        $or: [
-          { surname: { $regex: search, $options: 'i' } },
-          { firstName: { $regex: search, $options: 'i' } },
-          { middleName: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } },
-          { staffVerificationNumber: { $regex: search, $options: 'i' } },
-          { mda: { $regex: search, $options: 'i' } },
-          { presentRank: { $regex: search, $options: 'i' } },
-          { expectedRank: { $regex: search, $options: 'i' } },
-          { cadre: { $regex: search, $options: 'i' } },
-          { 'exam.examNumber': { $regex: search, $options: 'i' } },
-          { 'exam.examType': { $regex: search, $options: 'i' } },
-          { 'exam.examStatus': { $regex: search, $options: 'i' } },
-          { 'exam.remark': { $regex: search, $options: 'i' } }
-        ]
-      };
-    }
-
-    // Combine search query with other filters
-    const finalQuery = search ? { ...searchQuery, ...filterQuery } : filterQuery;
-
-    const [registrants, total] = await Promise.all([
-      this.registrantsModel
-        .find(finalQuery)
-        .select(this.getDefaultSelection())
-        .sort({ createdAt: -1 }) // Latest first
-        .limit(limit)
-        .skip(skip)
-        .lean(),
-      this.registrantsModel.countDocuments(finalQuery),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data: registrants,
-      pagination: {
-        total,
-        totalPages,
-        currentPage: page,
-        limit,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
-    };
+  if (searchRegex) {
+    matchStage.$or = [
+      { surname: searchRegex },
+      { firstName: searchRegex },
+      { middleName: searchRegex },
+      { email: searchRegex },
+      { phone: searchRegex },
+      { staffVerificationNumber: searchRegex },
+      { mda: searchRegex },
+      { presentRank: searchRegex },
+      { expectedRank: searchRegex },
+      { cadre: searchRegex },
+    ];
   }
+
+  const pipeline: any[] = [
+    { $match: matchStage },
+
+    {
+      $lookup: {
+        from: 'examsentities', // Collection name derived from ExamsEntity
+        localField: 'exam',
+        foreignField: '_id',
+        as: 'exam',
+      },
+    },
+    { $unwind: { path: '$exam', preserveNullAndEmptyArrays: true } },
+
+    ...(searchRegex
+      ? [
+          {
+            $match: {
+              $or: [
+                { 'exam.examNumber': searchRegex },
+                { 'exam.examType': searchRegex },
+                { 'exam.examStatus': searchRegex },
+                { 'exam.remark': searchRegex },
+              ],
+            },
+          },
+        ]
+      : []),
+
+    // Project stage to include exam fields directly in the main document
+    {
+      $addFields: {
+        'examNumber': '$exam.examNumber',
+        'examType': '$exam.examType'
+      }
+    },
+
+    { $sort: { createdAt: -1 } },
+    { $skip: skip },
+    { $limit: limit },
+  ];
+
+  const data = await this.registrantsModel.aggregate(pipeline).exec();
+
+  const countPipeline: any[] = [
+    { $match: matchStage },
+    {
+      $lookup: {
+        from: 'exams_entity',
+        localField: 'exam',
+        foreignField: '_id',
+        as: 'exam',
+      },
+    },
+    { $unwind: { path: '$exam', preserveNullAndEmptyArrays: true } },
+    ...(searchRegex
+      ? [
+          {
+            $match: {
+              $or: [
+                { 'exam.examNumber': searchRegex },
+                { 'exam.examType': searchRegex },
+                { 'exam.examStatus': searchRegex },
+                { 'exam.remark': searchRegex },
+              ],
+            },
+          },
+        ]
+      : []),
+    { $count: 'total' },
+  ];
+
+  const countResult = await this.registrantsModel.aggregate(countPipeline).exec();
+  const total = countResult[0]?.total || 0;
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    data,
+    pagination: {
+      total,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    },
+  };
+}
+
 
  async findOneRegistrant(id: string): Promise<RegistrantsDoc> {
   const existingRegistrant = await this.registrantsModel
