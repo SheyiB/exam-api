@@ -22,6 +22,7 @@ import { RegistrantMapper } from '../mappers/registrant.mapper';
 import { RegistrantExamUpdateDto } from '../dtos/registrants.update-exam.dto';
 import { ExamUpdateDto } from 'src/modules/exams/dtos/exams.update.dto';
 import { RegistrantUpdateDto } from '../dtos/registrants.update.dto';
+import { EmployeeDoc, EmployeeEntity } from '../../employees/repository/entities/employee.entity'
 interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -43,6 +44,9 @@ export class RegistrantsService implements IRegistrantsService {
     @InjectModel(ExamsEntity.name)
     private examsModel: Model<ExamsDoc>,
     private readonly cloudinaryStorageService: CloudinaryStorageService,
+
+    @InjectModel(EmployeeEntity.name)
+    private employeeModel: Model<EmployeeDoc>,
   ) {}
 
   private generateExamNumber(registeredUsers: number, registrantExamType: string): string {
@@ -87,6 +91,8 @@ export class RegistrantsService implements IRegistrantsService {
   registrant: RegistrantCreateDto & { profilePicture?: Express.Multer.File }
 ): Promise<RegistrantsDoc> {
   let profilePictureUrl: string | undefined;
+  
+  let newRegistrantData: any;
 
   const existingRegistrant = await this.registrantsModel.findOne({
     email: registrant.email,
@@ -99,6 +105,18 @@ export class RegistrantsService implements IRegistrantsService {
     });
   }
 
+   //is valid registrant in nominal roll
+  //  const employee = await this.employeeModel.findOne({
+  //    employeeId: registrant.staffVerificationNumber,
+  //  }).lean();
+
+  //  if (!employee) {
+  //     throw new UnprocessableEntityException({
+  //       statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+  //       message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_IN_NOMINAL_ROLL,
+  //     });
+  //  }
+   
   if (registrant.profilePicture) {
     try {
       profilePictureUrl = await this.cloudinaryStorageService.uploadFile(
@@ -110,10 +128,10 @@ export class RegistrantsService implements IRegistrantsService {
     }
   }
 
-  const registeredUsers = await this.registrantsModel.countDocuments({
-    'exam.examType': registrant.exam.examType,
+  const registeredUsers = await this.examsModel.countDocuments({
+    examType: registrant.exam.examType,
   });
-
+      
   const examNumber = this.generateExamNumber(
     registeredUsers,
     registrant.exam.examType
@@ -125,13 +143,16 @@ export class RegistrantsService implements IRegistrantsService {
     examNumber,
     examStatus: ExamStatus.PENDING,
   });
+   
+  newRegistrantData = { ...registrant };
+  // newRegistrantData.employeePassport = employee.profilePassport; 
 
   const newRegistrant = await this.registrantsModel.create({
-    ...registrant,
+    ...newRegistrantData,
     exam: newExam._id,
     profilePassport: profilePictureUrl,
   });
-
+   
   const populatedRegistrant = await this.registrantsModel
     .findById(newRegistrant._id)
     .populate('exam')
@@ -246,9 +267,9 @@ export class RegistrantsService implements IRegistrantsService {
   uploaderId: string,
 ): Promise<ExamsDoc> {
   const registrant = await this.registrantsModel.findById(registrantId).populate({
-  path: 'exam',
-  model: 'ExamsEntity'
-});
+    path: 'exam',
+    model: 'ExamsEntity'
+  });
 
   if (!registrant || !registrant.exam) {
     throw new NotFoundException({
@@ -266,37 +287,57 @@ export class RegistrantsService implements IRegistrantsService {
   }
 
   const updatableFields = {
-    generalPaperScore: 'generalPaperScoreUploadedBy',
-    professionalPaperScore: 'professionalPaperScoreUploadedBy',
-    interviewScore: 'interviewScoreUploadedBy',
-    appraisalScore: 'appraisalScoreUploadedBy',
-    seniorityScore: 'seniorityScoreUploadedBy',
+    generalPaperScore: 'generalPaperScoreTrail',
+    professionalPaperScore: 'professionalPaperScoreTrail',
+    interviewScore: 'interviewScoreTrail',
+    appraisalScore: 'appraisalScoreTrail',
+    seniorityScore: 'seniorityScoreTrail',
   };
 
   const updated = examUpdateDto.exam;
+  const now = new Date();
+  const userObjectId = new Types.ObjectId(uploaderId);
 
-  for (const [scoreKey, uploaderKey] of Object.entries(updatableFields)) {
+  // Update scores and add to trails
+  for (const [scoreKey, trailKey] of Object.entries(updatableFields)) {
     const score = updated[scoreKey as keyof ExamUpdateDto];
     if (typeof score === 'number') {
-      (exam as any)[scoreKey] = score;
-      (exam as any)[uploaderKey] = uploaderId;
+      // Add new entry to the score trail
+      (exam as any)[trailKey].push({
+        score: score,
+        uploadedBy: userObjectId,
+        uploadedAt: now
+      });
     }
   }
 
+  // Update remark if provided
   if (updated.remark !== undefined) {
-    exam.remark = updated.remark;
+    exam.remarkTrail.push({
+      remark: updated.remark,
+      uploadedBy: userObjectId,
+      uploadedAt: now
+    });
   }
 
-  // Recalculate totalScore
+  // Recalculate totalScore using the most recent scores from each category
   const total = Object.keys(updatableFields)
-    .map(key => (exam as any)[key])
-    .filter(score => typeof score === 'number')
+    .map(key => {
+      const trailKey = updatableFields[key as keyof typeof updatableFields];
+      const trail = (exam as any)[trailKey];
+      return trail.length > 0 ? trail[trail.length - 1].score : 0;
+    })
     .reduce((sum, val) => sum + val, 0);
 
-  exam.totalScore = total;
-  exam.totalScoreUploadedBy = new Types.ObjectId(uploaderId);
+  // Add total score to its trail
+  exam.totalScoreTrail.push({
+    score: total,
+    uploadedBy: userObjectId,
+    uploadedAt: now
+  });
 
-  exam.examStatus = total < 50 ? ExamStatus.FAILED : ExamStatus.PASSED;
+  // Update exam status based on total score
+  exam.examStatus = total < 50 ? examStatus.failed : examStatus.passed;
 
   await exam.save();
   return exam;
