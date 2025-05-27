@@ -16,11 +16,12 @@ import {
   ENUM_RESPONSE_MESSAGE,
 } from 'src/common/constants';
 import { examType, examStatus, ExamsDoc, ExamsEntity } from '../../exams/repository/entities/exams.entity';
-import { ExamStatus } from 'src/modules/exams/dtos/exams.create.dto';
+import { ExamStatus, ExamType } from 'src/modules/exams/dtos/exams.create.dto';
 import { CloudinaryStorageService } from 'src/common/cloudinary/services/cloudinary.storage.service';
 import { RegistrantMapper } from '../mappers/registrant.mapper';
 import { RegistrantExamUpdateDto } from '../dtos/registrants.update-exam.dto';
 import { ExamUpdateDto } from 'src/modules/exams/dtos/exams.update.dto';
+import { ExamPassScoreDoc, ExamPassScore } from 'src/modules/exams/repository/entities/exam.passScore.entity';
 import { RegistrantUpdateDto } from '../dtos/registrants.update.dto';
 import { EmployeeDoc, EmployeeEntity } from '../../employees/repository/entities/employee.entity'
 interface PaginatedResponse<T> {
@@ -44,6 +45,8 @@ export class RegistrantsService implements IRegistrantsService {
     @InjectModel(ExamsEntity.name)
     private examsModel: Model<ExamsDoc>,
     private readonly cloudinaryStorageService: CloudinaryStorageService,
+
+    @InjectModel(ExamPassScore.name) private examPassScoreModel: Model<ExamPassScoreDoc>,
 
     @InjectModel(EmployeeEntity.name)
     private employeeModel: Model<EmployeeDoc>,
@@ -106,16 +109,16 @@ export class RegistrantsService implements IRegistrantsService {
   }
 
    //is valid registrant in nominal roll
-  //  const employee = await this.employeeModel.findOne({
-  //    employeeId: registrant.staffVerificationNumber,
-  //  }).lean();
+   const employee = await this.employeeModel.findOne({
+     employeeId: registrant.staffVerificationNumber,
+   }).lean();
 
-  //  if (!employee) {
-  //     throw new UnprocessableEntityException({
-  //       statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
-  //       message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_IN_NOMINAL_ROLL,
-  //     });
-  //  }
+   if (!employee) {
+      throw new UnprocessableEntityException({
+        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+        message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_IN_NOMINAL_ROLL,
+      });
+   }
    
   if (registrant.profilePicture) {
     try {
@@ -145,7 +148,7 @@ export class RegistrantsService implements IRegistrantsService {
   });
    
   newRegistrantData = { ...registrant };
-  // newRegistrantData.employeePassport = employee.profilePassport; 
+  newRegistrantData.employeePassport = employee.profilePassport; 
 
   const newRegistrant = await this.registrantsModel.create({
     ...newRegistrantData,
@@ -161,43 +164,6 @@ export class RegistrantsService implements IRegistrantsService {
   return populatedRegistrant;
 }
 
-  // async updateRegistrants(
-  //   id: string,
-  //   registrant: Partial<RegistrantCreateDto>,
-  //   uploader: string
-  // ): Promise<RegistrantsDoc> {
-  //   // The pre-update middleware will automatically update the examStatus based on scores
-
-  //     const updateObject: any = { ...registrant };
-    
-  //   if (registrant.exam.generalPaperScore && registrant.exam.professionalPaperScore) {
-  //     registrant.exam.totalScore = registrant.exam.generalPaperScore + registrant.exam.professionalPaperScore;
-  //     if (registrant.exam.totalScore < 50) {
-  //       registrant.exam.examStatus = ExamStatus.FAILED;
-  //     } else if (registrant.exam.totalScore >= 50) {
-  //       registrant.exam.examStatus = ExamStatus.PASSED;
-  //     }
-  //    }
-    
-  //   if (registrant.exam) {
-  //     updateObject.exam = RegistrantMapper.mapExamDtoToUpdate(registrant.exam, uploader);
-  //   }
-    
-  //   const existingRegistrant = await this.registrantsModel.findByIdAndUpdate(
-  //     id,
-  //     updateObject,
-  //     { new: true }
-  //   );
-
-  //   if (!existingRegistrant) {
-  //     throw new NotFoundException({
-  //       statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_NOT_FOUND_ERROR,
-  //       message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_FOUND,
-  //     });
-  //   }
-
-  //   return existingRegistrant;
-  // }
   async updateRegistrant(
   registrantId: string,
   updateDto: RegistrantUpdateDto,
@@ -248,19 +214,6 @@ export class RegistrantsService implements IRegistrantsService {
   return savedRegistrant;
 }
 
-//   async updateRegistrantExam(
-//   id: string,
-//   dto: RegistrantExamUpdateDto,
-//   uploader: string
-// ) {
-//   const update: any = {};
-
-//   if (dto.exam) {
-//     update.exam = RegistrantMapper.mapExamDtoToUpdate(dto.exam, uploader);
-//   }
-
-//   return this.registrantsModel.findByIdAndUpdate(id, update, { new: true });
-  // }
  async updateRegistrantExam(
   registrantId: string,
   examUpdateDto: RegistrantExamUpdateDto,
@@ -287,6 +240,7 @@ export class RegistrantsService implements IRegistrantsService {
   }
 
   const updatableFields = {
+    examScore: 'examScoreTrail',
     generalPaperScore: 'generalPaperScoreTrail',
     professionalPaperScore: 'professionalPaperScoreTrail',
     interviewScore: 'interviewScoreTrail',
@@ -321,7 +275,9 @@ export class RegistrantsService implements IRegistrantsService {
   }
 
   // Recalculate totalScore using the most recent scores from each category
-  const total = Object.keys(updatableFields)
+  // Note: examScore is included in the calculation if you want it to contribute to total
+  const scoreFields = ['examScore', 'generalPaperScore', 'professionalPaperScore', 'interviewScore', 'appraisalScore', 'seniorityScore'];
+  const total = scoreFields
     .map(key => {
       const trailKey = updatableFields[key as keyof typeof updatableFields];
       const trail = (exam as any)[trailKey];
@@ -462,24 +418,56 @@ async findAllRegistrants(query: {
   };
 }
 
-
  async findOneRegistrant(id: string): Promise<RegistrantsDoc> {
   const existingRegistrant = await this.registrantsModel
     .findById(id)
     .populate({
       path: 'exam',
       populate: [
-        { path: 'generalPaperScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
-        { path: 'professionalPaperScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
-        { path: 'interviewScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
-        { path: 'appraisalScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
-        { path: 'seniorityScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
-        { path: 'totalScoreUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
-        { path: 'remarkUploadedBy', model: 'UserEntity', select: 'fullname jobTitle department' },
+       {
+          path: 'examScoreTrail.uploadedBy',
+          model: 'UserEntity',
+          select: 'fullname department jobTitle workEmailAddress'
+        },
+      { 
+        path: 'generalPaperScoreTrail.uploadedBy', 
+        model: 'UserEntity',
+        select: 'fullname department jobTitle workEmailAddress' // Add the fields you want
+      },
+      
+      { 
+        path: 'professionalPaperScoreTrail.uploadedBy', 
+        model: 'UserEntity',
+        select: 'fullname department jobTitle workEmailAddress'
+      },
+      { 
+        path: 'interviewScoreTrail.uploadedBy', 
+        model: 'UserEntity',
+        select: 'fullname department jobTitle workEmailAddress'
+      },
+      { 
+        path: 'appraisalScoreTrail.uploadedBy', 
+        model: 'UserEntity',
+        select: 'fullname department jobTitle workEmailAddress'
+      },
+      { 
+        path: 'seniorityScoreTrail.uploadedBy', 
+        model: 'UserEntity',
+        select: 'fullname department jobTitle workEmailAddress'
+      },
+      { 
+        path: 'totalScoreTrail.uploadedBy', 
+        model: 'UserEntity',
+        select: 'fullname department jobTitle workEmailAddress'
+      },
+      { 
+        path: 'remarkTrail.uploadedBy', 
+        model: 'UserEntity',
+        select: 'fullname department jobTitle workEmailAddress'
+      }
       ]
-    })
-    .lean();
-
+    }) as any;
+   
   if (!existingRegistrant) {
     throw new NotFoundException({
       statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_NOT_FOUND_ERROR,
@@ -487,9 +475,9 @@ async findAllRegistrants(query: {
     });
   }
 
+ 
   return existingRegistrant;
 }
-
 
   async removeRegistrant(id: string): Promise<RegistrantsDoc> {
     const deletedRegistrant = await this.registrantsModel.findByIdAndDelete(id);
@@ -504,111 +492,338 @@ async findAllRegistrants(query: {
     return deletedRegistrant;
   }
 
-  async registrantStats() {
-    const [
-      totalRegistrations,
-      examStats,
-      incapacitatedStats,
-      examTypeStats,
-    ] = await Promise.all([
-      this.registrantsModel.countDocuments(),
-      this.registrantsModel.aggregate([
-        {
-          $group: {
-            _id: '$exam.examStatus',
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-      this.registrantsModel.countDocuments({ disability: true }),
-      this.registrantsModel.aggregate([
-        {
-          $group: {
-            _id: '$exam.examType',
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-    ]);
-
-    const examStatusMap = examStats.reduce((acc, { _id, count }) => ({
-      ...acc,
-      [_id]: count,
-    }), {});
-
-    const examTypeMap = examTypeStats.reduce((acc, { _id, count }) => ({
-      ...acc,
-      [`total${_id}Exams`]: count,
-    }), {});
-
-    return {
-      totalRegistrations,
-      totalPassed: examStatusMap[examStatus.passed] || 0,
-      totalFailed: examStatusMap[examStatus.failed] || 0,
-      totalPending: examStatusMap[examStatus.pending] || 0,
-      totalIncapacitated: incapacitatedStats,
-      ...examTypeMap,
-    };
+  // Helper method to get or create pass score for an exam type
+  async getPassScoreForExamType(examType: examType): Promise<number> {
+    try {
+      let passScoreDoc = await this.examPassScoreModel.findOne({ examType });
+      
+      if (!passScoreDoc) {
+        // Create default pass score if it doesn't exist
+        passScoreDoc = await this.examPassScoreModel.create({
+          examType,
+          passScore: 60,
+          createdAt: new Date(),
+        });
+      }
+      
+      return passScoreDoc.passScore;
+    } catch (error) {
+      console.warn(`Error getting pass score for ${examType}, using default 60:`, error);
+      return 60; // Default fallback
+    }
   }
 
-  async registrantByPromotion() {
-    const promotionResults = await this.registrantsModel.aggregate([
+  // Helper method to calculate total score from exam trails
+  private calculateTotalScore(examData: any): number {
+    const scores = [
+      this.getLatestScore(examData.generalPaperScoreTrail),
+      this.getLatestScore(examData.professionalPaperScoreTrail),
+      this.getLatestScore(examData.interviewScoreTrail),
+      this.getLatestScore(examData.appraisalScoreTrail),
+      this.getLatestScore(examData.seniorityScoreTrail),
+    ].filter(score => score !== null);
+
+    if (scores.length === 0) return 0;
+    return scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  }
+
+  // Helper method to get latest score from trail
+  private getLatestScore(trail: any[]): number | null {
+    if (!trail || trail.length === 0) return null;
+    return trail[trail.length - 1].score;
+  }
+
+ async registrantStats() {
+  const [
+    totalRegistrations,
+    incapacitatedStats,
+    examTypeStats,
+  ] = await Promise.all([
+    this.registrantsModel.countDocuments(),
+    this.registrantsModel.countDocuments({ disability: true }),
+    this.registrantsModel.aggregate([
       {
-        $match: {
-          'exam.examStatus': examStatus.passed,
-        },
+        $lookup: {
+          from: 'exams',
+          localField: 'exam',
+          foreignField: '_id',
+          as: 'examData'
+        }
+      },
+      {
+        $unwind: {
+          path: '$examData',
+          preserveNullAndEmptyArrays: true
+        }
       },
       {
         $group: {
-          _id: {
-            presentGradeLevel: '$presentGradeLevel',
-            expectedGradeLevel: '$expectedGradeLevel',
-          },
+          _id: '$examData.examType',
           count: { $sum: 1 },
         },
       },
-    ]);
+    ]),
+  ]);
+
+  // Get pass scores for all exam types
+  const promotionPassScore = await this.getPassScoreForExamType('promotion' as examType);
+  const conversionPassScore = await this.getPassScoreForExamType('conversion'  as examType);
+  const confirmationPassScore = await this.getPassScoreForExamType('confirmation'  as examType);
+
+  const passScoreMap = {
+    'promotion': promotionPassScore,
+    'conversion': conversionPassScore,
+    'confirmation': confirmationPassScore,
+  };
 
 
-    const rankRange = Array.from({ length: 15 }, (_, i) => ({
-    presentGradeLevel: String(i + 1), 
-    expectedGradeLevel: String(i + 2), 
-    }));
+  // Get all registrants with their exam data
+  const registrantsWithExams = await this.registrantsModel.aggregate([
+    {
+      $lookup: {
+        from: 'examsentities',
+        localField: 'exam',
+        foreignField: '_id',
+        as: 'examData'
+      }
+    },
+    {
+      $unwind: {
+        path: '$examData',
+        preserveNullAndEmptyArrays: false // Only include registrants who have exam records
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        examData: 1
+      }
+    }
+  ]);
+   
 
-    const statsMap = promotionResults.reduce((acc, { _id, count }) => {
-      const key = `${_id.presentGradeLevel}-${_id.expectedGradeLevel}`;
-      acc[key] = count;
-      return acc;
-    }, {});
+  let totalPassed = 0;
+  let totalFailed = 0;
+  let totalPending = 0;
 
-    const stats = rankRange.map(({ presentGradeLevel, expectedGradeLevel }) => ({
-      presentGradeLevel,
-      expectedGradeLevel,
-      count: statsMap[`${presentGradeLevel}-${expectedGradeLevel}`] || 0,
-    }));
+  // Process each registrant with exam data
+  registrantsWithExams.forEach(registrant => {
+    const examData = registrant.examData;
+    const examType = examData.examType;
+    
+    // Calculate total score from the latest scores in each trail
+    let totalScore = 0;
+    let scoreCount = 0;
+    let hasAnyScore = false;
 
-    return stats;
-  }
+    // Check each score trail and get the latest score
+    const scoreTrails = [
+      examData.generalPaperScoreTrail,
+      examData.professionalPaperScoreTrail,
+      examData.interviewScoreTrail,
+      examData.appraisalScoreTrail,
+      examData.seniorityScoreTrail,
+      examData.examScoreTrail,
+    ];
 
-  async getRegistrantsByStatus(
-    status: 'passed' | 'failed' | 'pending' | 'incapacitated',
-    query: { limit?: string; page?: string; search?: string; [key: string]: any }
-  ): Promise<PaginatedResponse<RegistrantsDoc>> {
-    const limit = Math.min(parseInt(query.limit || '20', 10), 100);
-    const page = Math.max(parseInt(query.page || '1', 10), 1);
-    const skip = (page - 1) * limit;
+    scoreTrails.forEach(trail => {
+      if (trail && trail.length > 0) {
+        const latestScore = trail[trail.length - 1].score;
+        if (latestScore !== null && latestScore !== undefined) {
+          totalScore += latestScore;
+          scoreCount++;
+          hasAnyScore = true;
+        }
+      }
+    });
 
-    const statusQuery = status === 'incapacitated'
-      ? { disability: true }
-      : { 'exam.examStatus': status };
+    // Calculate average score if we have any scores
+    const calculatedScore = hasAnyScore && scoreCount > 0 ? totalScore : 0;
+    
+    // Get pass score for this exam type (default to 60 if not found)
+    const passScore = passScoreMap[examType] || 60;
+    
 
-    // Remove pagination and search params from query
-    const { limit: _, page: __, search, ...filterQuery } = query;
+    // Determine status based on calculated score
+    if (!hasAnyScore || calculatedScore === 0) {
+      // No scores available - consider as pending
+      totalPending++;
+    } else if (calculatedScore >= passScore) {
+      totalPassed++;
+    } else {
+      totalFailed++;
+    }
+  });
 
-    // Build search query if search parameter is provided
-    let searchQuery = {};
-    if (search) {
-      searchQuery = {
+  // Create exam type map
+  const examTypeMap = examTypeStats.reduce((acc, { _id, count }) => ({
+    ...acc,
+    [`total${_id || 'Unknown'}Exams`]: count,
+  }), {});
+
+  return {
+    totalRegistrations,
+    totalPassed,
+    totalFailed,
+    totalPending,
+    totalIncapacitated: incapacitatedStats,
+    ...examTypeMap,
+  };
+}
+
+ async registrantByPromotion() {
+  // Get pass scores for all exam types
+  const promotionPassScore = await this.getPassScoreForExamType('promotion' as examType);
+  const conversionPassScore = await this.getPassScoreForExamType('conversion' as examType);
+  const confirmationPassScore = await this.getPassScoreForExamType('confirmation' as examType);
+
+  const passScoreMap = {
+    'promotion': promotionPassScore,
+    'conversion': conversionPassScore,
+    'confirmation': confirmationPassScore,
+  };
+
+  // Get all registrants with their exam data
+  const registrantsWithExams = await this.registrantsModel.aggregate([
+    {
+      $lookup: {
+        from: 'examsentities',
+        localField: 'exam',
+        foreignField: '_id',
+        as: 'examData'
+      }
+    },
+    {
+      $unwind: {
+        path: '$examData',
+        preserveNullAndEmptyArrays: false // Only include registrants who have exam records
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        presentGradeLevel: 1,
+        expectedGradeLevel: 1,
+        examData: 1
+      }
+    }
+  ]);
+
+  // Filter registrants who passed their exams
+  const passedRegistrants = [];
+
+  registrantsWithExams.forEach(registrant => {
+    const examData = registrant.examData;
+    const examType = examData.examType;
+    
+    // Calculate total score from the latest scores in each trail
+    let totalScore = 0;
+    let scoreCount = 0;
+    let hasAnyScore = false;
+
+    // Check each score trail and get the latest score
+    const scoreTrails = [
+      examData.generalPaperScoreTrail,
+      examData.professionalPaperScoreTrail,
+      examData.interviewScoreTrail,
+      examData.appraisalScoreTrail,
+      examData.seniorityScoreTrail,
+      examData.examScoreTrail,
+    ];
+
+    scoreTrails.forEach(trail => {
+      if (trail && trail.length > 0) {
+        const latestScore = trail[trail.length - 1].score;
+        if (latestScore !== null && latestScore !== undefined) {
+          totalScore += latestScore;
+          scoreCount++;
+          hasAnyScore = true;
+        }
+      }
+    });
+
+    // Calculate average score if we have any scores
+    const calculatedScore = hasAnyScore && scoreCount > 0 ? totalScore : 0;
+    
+    // Get pass score for this exam type (default to 60 if not found)
+    const passScore = passScoreMap[examType] || 60;
+
+    // Check if registrant passed
+    if (hasAnyScore && calculatedScore >= passScore) {
+      passedRegistrants.push({
+        presentGradeLevel: registrant.presentGradeLevel,
+        expectedGradeLevel: registrant.expectedGradeLevel
+      });
+    }
+  });
+
+  // Group passed registrants by grade levels
+  const promotionResults = passedRegistrants.reduce((acc, registrant) => {
+    const key = `${registrant.presentGradeLevel}-${registrant.expectedGradeLevel}`;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Create rank range for levels 1-15
+  const rankRange = Array.from({ length: 15 }, (_, i) => ({
+    presentGradeLevel: String(i + 1),
+    expectedGradeLevel: String(i + 2),
+  }));
+
+  // Map the results to the rank range
+  const stats = rankRange.map(({ presentGradeLevel, expectedGradeLevel }) => ({
+    presentGradeLevel,
+    expectedGradeLevel,
+    count: promotionResults[`${presentGradeLevel}-${expectedGradeLevel}`] || 0,
+  }));
+
+  return stats;
+}
+
+async getRegistrantsByStatus(
+  status: 'passed' | 'failed' | 'pending' | 'incapacitated',
+  query: { limit?: string; page?: string; search?: string; [key: string]: any }
+): Promise<any> {
+  const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+  const page = Math.max(parseInt(query.page || '1', 10), 1);
+  const skip = (page - 1) * limit;
+
+  // Get pass scores for all exam types
+  const promotionPassScore = await this.getPassScoreForExamType('promotion' as examType);
+  const conversionPassScore = await this.getPassScoreForExamType('conversion' as examType);
+  const confirmationPassScore = await this.getPassScoreForExamType('confirmation' as examType);
+
+  const passScoreMap = {
+    'promotion': promotionPassScore,
+    'conversion': conversionPassScore,
+    'confirmation': confirmationPassScore,
+  };
+
+  // Remove pagination and search params from query
+  const { limit: _, page: __, search, ...filterQuery } = query;
+
+  // Build aggregation pipeline
+  const pipeline: any[] = [
+    {
+      $lookup: {
+        from: 'examsentities',
+        localField: 'exam',
+        foreignField: '_id',
+        as: 'examData'
+      }
+    },
+    {
+      $unwind: {
+        path: '$examData',
+        preserveNullAndEmptyArrays: status === 'incapacitated'
+      }
+    }
+  ];
+
+  // Add search functionality
+  if (search) {
+    pipeline.push({
+      $match: {
         $or: [
           { surname: { $regex: search, $options: 'i' } },
           { firstName: { $regex: search, $options: 'i' } },
@@ -619,30 +834,52 @@ async findAllRegistrants(query: {
           { mda: { $regex: search, $options: 'i' } },
           { presentRank: { $regex: search, $options: 'i' } },
           { expectedRank: { $regex: search, $options: 'i' } },
+          { presentGradeLevel: { $regex: search, $options: 'i' } },
           { cadre: { $regex: search, $options: 'i' } },
-          { 'exam.examNumber': { $regex: search, $options: 'i' } },
-          { 'exam.examType': { $regex: search, $options: 'i' } },
-          { 'exam.remark': { $regex: search, $options: 'i' } }
+          { 'examData.examNumber': { $regex: search, $options: 'i' } },
+          { 'examData.examType': { $regex: search, $options: 'i' } }
         ]
-      };
-    }
+      }
+    });
+  }
 
-    // Combine status query, search query and other filters
-    const finalQuery = search 
-      ? { ...statusQuery, ...searchQuery, ...filterQuery } 
-      : { ...statusQuery, ...filterQuery };
+  // Apply other filters (excluding exam status-based filters)
+  const nonExamStatusFilters = { ...filterQuery };
+  
+  // Handle exam.examType filter
+  if (query['exam.examType']) {
+    nonExamStatusFilters['examData.examType'] = query['exam.examType'];
+    delete nonExamStatusFilters['exam.examType'];
+  }
 
-    const [registrants, total] = await Promise.all([
-      this.registrantsModel
-        .find(finalQuery)
-        .select(this.getDefaultSelection())
-        .sort({ createdAt: -1 }) // Latest first
-        .limit(limit)
-        .skip(skip)
-        .lean(),
-      this.registrantsModel.countDocuments(finalQuery),
-    ]);
+  // Remove exam.examStatus filter as we'll handle status through score calculation
+  delete nonExamStatusFilters['exam.examStatus'];
 
+  if (Object.keys(nonExamStatusFilters).length > 0) {
+    pipeline.push({
+      $match: nonExamStatusFilters
+    });
+  }
+
+  // Handle incapacitated status separately
+  if (status === 'incapacitated') {
+    pipeline.push({
+      $match: { disability: true }
+    });
+    
+    // Get total count for incapacitated
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const countResult = await this.registrantsModel.aggregate(countPipeline);
+    const total = countResult[0]?.total || 0;
+
+    // Get paginated results
+    pipeline.push(
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit }
+    );
+
+    const registrants = await this.registrantsModel.aggregate(pipeline);
     const totalPages = Math.ceil(total / limit);
 
     return {
@@ -658,80 +895,347 @@ async findAllRegistrants(query: {
     };
   }
 
- async getExamStatusByLevel(examTypeFilter?: examType) {
-  // Base aggregation pipeline
-  const pipeline = [
-    // Add match stage if examType is provided
-    ...(examTypeFilter ? [{ $match: { 'exam.examType': examTypeFilter } }] : []),
-    {
-      $group: {
-        _id: '$presentRank',
-        passed: {
-          $sum: {
-            $cond: [{ $eq: ['$exam.examStatus', examStatus.passed] }, 1, 0],
-          },
-        },
-        failed: {
-          $sum: {
-            $cond: [{ $eq: ['$exam.examStatus', examStatus.failed] }, 1, 0],
-          },
-        },
-        pending: {
-          $sum: {
-            $cond: [{ $eq: ['$exam.examStatus', examStatus.pending] }, 1, 0],
-          },
-        },
-      },
-    },
-  ];
+  // For non-incapacitated statuses, we need to calculate scores
+  const allRegistrants = await this.registrantsModel.aggregate(pipeline);
+  
+  // Filter registrants based on calculated status
+  const filteredRegistrants = [];
 
-  const examStatusByLevel = await this.registrantsModel.aggregate(pipeline);
+  allRegistrants.forEach(registrant => {
+    const examData = registrant.examData;
+    
+    if (!examData) return; // Skip if no exam data
 
-  const stats = examStatusByLevel
-    .map(({ _id, passed, failed, pending }) => ({
-      level: _id,
-      passed,
-      failed,
-      pending,
-    }))
-    .sort((a, b) => {
-      if (a.level < b.level) {
-        return -1;
+    const examType = examData.examType;
+    
+    // Calculate total score from the latest scores in each trail
+    let totalScore = 0;
+    let scoreCount = 0;
+    let hasAnyScore = false;
+
+    // Check each score trail and get the latest score
+    const scoreTrails = [
+      examData.generalPaperScoreTrail,
+      examData.professionalPaperScoreTrail,
+      examData.interviewScoreTrail,
+      examData.appraisalScoreTrail,
+      examData.seniorityScoreTrail,
+      examData.examScoreTrail,
+    ];
+
+    scoreTrails.forEach(trail => {
+      if (trail && trail.length > 0) {
+        const latestScore = trail[trail.length - 1].score;
+        if (latestScore !== null && latestScore !== undefined) {
+          totalScore += latestScore;
+          scoreCount++;
+          hasAnyScore = true;
+        }
       }
-      if (a.level > b.level) {
-        return 1;
-      }
-      return 0;
     });
 
-  return stats;
- }
-  
-  async setPassMark() {
+    // Calculate average score if we have any scores
+    const calculatedScore = hasAnyScore && scoreCount > 0 ? totalScore : 0;
     
+    // Get pass score for this exam type (default to 60 if not found)
+    const passScore = passScoreMap[examType] || 60;
+
+    // Determine registrant's status
+    let registrantStatus: string;
+    if (!hasAnyScore || calculatedScore === 0) {
+      registrantStatus = 'pending';
+    } else if (calculatedScore >= passScore) {
+      registrantStatus = 'passed';
+    } else {
+      registrantStatus = 'failed';
+    }
+
+    // Include registrant if their status matches the requested status
+    if (registrantStatus === status) {
+      filteredRegistrants.push(registrant);
+    }
+  });
+
+  // Apply pagination to filtered results
+  const total = filteredRegistrants.length;
+  const totalPages = Math.ceil(total / limit);
+  const paginatedRegistrants = filteredRegistrants
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(skip, skip + limit);
+
+  return {
+    data: paginatedRegistrants,
+    pagination: {
+      total,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    },
+  };
+}
+
+  async getExamStatusByLevel(examTypeFilter?: examType) {
+  // Get pass scores for all exam types
+  const promotionPassScore = await this.getPassScoreForExamType('promotion' as examType);
+  const conversionPassScore = await this.getPassScoreForExamType('conversion' as examType);
+  const confirmationPassScore = await this.getPassScoreForExamType('confirmation' as examType);
+
+  const passScoreMap = {
+    'promotion': promotionPassScore,
+    'conversion': conversionPassScore,
+    'confirmation': confirmationPassScore,
+  };
+
+  const pipeline: any[] = [
+    {
+      $lookup: {
+        from: 'examsentities',
+        localField: 'exam',
+        foreignField: '_id',
+        as: 'examData'
+      }
+    },
+    {
+      $unwind: {
+        path: '$examData',
+        preserveNullAndEmptyArrays: false // Only include registrants who have exam records
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        presentGradeLevel: 1,
+        examData: 1
+      }
+    }
+  ];
+
+  // Add match stage if examType is provided
+  if (examTypeFilter) {
+    pipeline.push({ $match: { 'examData.examType': examTypeFilter } });
   }
 
-  // New method to get average scores by exam type
+  const registrantsWithExams = await this.registrantsModel.aggregate(pipeline);
+
+  // Process each registrant to determine their exam status
+  const statusByLevel = {};
+
+  registrantsWithExams.forEach(registrant => {
+    const examData = registrant.examData;
+    const examType = examData.examType;
+    const gradeLevel = registrant.presentGradeLevel;
+
+    // Initialize level stats if not exists
+    if (!statusByLevel[gradeLevel]) {
+      statusByLevel[gradeLevel] = {
+        passed: 0,
+        failed: 0,
+        pending: 0
+      };
+    }
+
+    // Calculate total score from the latest scores in each trail
+    let totalScore = 0;
+    let scoreCount = 0;
+    let hasAnyScore = false;
+
+    // Check each score trail and get the latest score
+    const scoreTrails = [
+      examData.generalPaperScoreTrail,
+      examData.professionalPaperScoreTrail,
+      examData.interviewScoreTrail,
+      examData.appraisalScoreTrail,
+      examData.seniorityScoreTrail,
+      examData.examScoreTrail,
+    ];
+
+    scoreTrails.forEach(trail => {
+      if (trail && trail.length > 0) {
+        const latestScore = trail[trail.length - 1].score;
+        if (latestScore !== null && latestScore !== undefined) {
+          totalScore += latestScore;
+          scoreCount++;
+          hasAnyScore = true;
+        }
+      }
+    });
+
+    // Calculate average score if we have any scores
+    const calculatedScore = hasAnyScore && scoreCount > 0 ? totalScore : 0;
+    
+    // Get pass score for this exam type (default to 60 if not found)
+    const passScore = passScoreMap[examType] || 60;
+
+    // Determine status based on calculated score
+    if (!hasAnyScore || calculatedScore === 0) {
+      // No scores available - consider as pending
+      statusByLevel[gradeLevel].pending++;
+    } else if (calculatedScore >= passScore) {
+      statusByLevel[gradeLevel].passed++;
+    } else {
+      statusByLevel[gradeLevel].failed++;
+    }
+  });
+
+  // Create stats for all levels 1-17, including those with no data
+  const stats = Array.from({ length: 17 }, (_, i) => {
+    const level = String(i + 1);
+    const levelStats = statusByLevel[level] || { passed: 0, failed: 0, pending: 0 };
+    
+    return {
+      level,
+      passed: levelStats.passed,
+      failed: levelStats.failed,
+      pending: levelStats.pending,
+    };
+  });
+
+  return stats;
+}
+
   async getAverageScoresByExamType() {
     const averageScores = await this.registrantsModel.aggregate([
       {
+        $lookup: {
+          from: 'exams',
+          localField: 'exam',
+          foreignField: '_id',
+          as: 'examData'
+        }
+      },
+      {
+        $unwind: { 
+          path: '$examData', 
+          preserveNullAndEmptyArrays: false 
+        }
+      },
+      {
         $match: {
-          'exam.generalPaperScore': { $exists: true },
-          'exam.professionalPaperScore': { $exists: true }
+          $or: [
+            { 'examData.generalPaperScoreTrail': { $exists: true, $ne: [] } },
+            { 'examData.professionalPaperScoreTrail': { $exists: true, $ne: [] } }
+          ]
+        }
+      },
+      {
+        $addFields: {
+          // Get the latest scores from trails
+          latestGeneralScore: { 
+            $let: {
+              vars: { 
+                trail: '$examData.generalPaperScoreTrail' 
+              },
+              in: { 
+                $cond: [
+                  { $gt: [{ $size: '$$trail' }, 0] },
+                  { $arrayElemAt: ['$$trail.score', -1] },
+                  null
+                ]
+              }
+            }
+          },
+          latestProfessionalScore: { 
+            $let: {
+              vars: { 
+                trail: '$examData.professionalPaperScoreTrail' 
+              },
+              in: { 
+                $cond: [
+                  { $gt: [{ $size: '$$trail' }, 0] },
+                  { $arrayElemAt: ['$$trail.score', -1] },
+                  null
+                ]
+              }
+            }
+          },
+          latestInterviewScore: { 
+            $let: {
+              vars: { 
+                trail: '$examData.interviewScoreTrail' 
+              },
+              in: { 
+                $cond: [
+                  { $gt: [{ $size: '$$trail' }, 0] },
+                  { $arrayElemAt: ['$$trail.score', -1] },
+                  null
+                ]
+              }
+            }
+          },
+          latestAppraisalScore: { 
+            $let: {
+              vars: { 
+                trail: '$examData.appraisalScoreTrail' 
+              },
+              in: { 
+                $cond: [
+                  { $gt: [{ $size: '$$trail' }, 0] },
+                  { $arrayElemAt: ['$$trail.score', -1] },
+                  null
+                ]
+              }
+            }
+          },
+          latestSeniorityScore: { 
+            $let: {
+              vars: { 
+                trail: '$examData.seniorityScoreTrail' 
+              },
+              in: { 
+                $cond: [
+                  { $gt: [{ $size: '$$trail' }, 0] },
+                  { $arrayElemAt: ['$$trail.score', -1] },
+                  null
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          calculatedTotalScore: {
+            $let: {
+              vars: {
+                validScores: {
+                  $filter: {
+                    input: [
+                      '$latestGeneralScore',
+                      '$latestProfessionalScore', 
+                      '$latestInterviewScore',
+                      '$latestAppraisalScore',
+                      '$latestSeniorityScore'
+                    ],
+                    cond: { $ne: ['$$this', null] }
+                  }
+                }
+              },
+              in: {
+                $cond: [
+                  { $gt: [{ $size: '$$validScores' }, 0] },
+                  { $divide: [{ $sum: '$$validScores' }, { $size: '$$validScores' }] },
+                  0
+                ]
+              }
+            }
+          }
         }
       },
       {
         $group: {
-          _id: '$exam.examType',
-          avgGeneralScore: { $avg: '$exam.generalPaperScore' },
-          avgProfessionalScore: { $avg: '$exam.professionalPaperScore' },
-          avgTotalScore: { 
-            $avg: { $add: ['$exam.generalPaperScore', '$exam.professionalPaperScore'] } 
-          },
+          _id: '$examData.examType',
+          avgGeneralScore: { $avg: '$latestGeneralScore' },
+          avgProfessionalScore: { $avg: '$latestProfessionalScore' },
+          avgInterviewScore: { $avg: '$latestInterviewScore' },
+          avgAppraisalScore: { $avg: '$latestAppraisalScore' },
+          avgSeniorityScore: { $avg: '$latestSeniorityScore' },
+          avgTotalScore: { $avg: '$calculatedTotalScore' },
           totalCandidates: { $sum: 1 },
           passedCandidates: {
             $sum: {
-              $cond: [{ $eq: ['$exam.examStatus', examStatus.passed] }, 1, 0]
+              $cond: [{ $eq: ['$examData.examStatus', examStatus.passed] }, 1, 0]
             }
           }
         }
@@ -741,6 +1245,9 @@ async findAllRegistrants(query: {
           examType: '$_id',
           avgGeneralScore: { $round: ['$avgGeneralScore', 2] },
           avgProfessionalScore: { $round: ['$avgProfessionalScore', 2] },
+          avgInterviewScore: { $round: ['$avgInterviewScore', 2] },
+          avgAppraisalScore: { $round: ['$avgAppraisalScore', 2] },
+          avgSeniorityScore: { $round: ['$avgSeniorityScore', 2] },
           avgTotalScore: { $round: ['$avgTotalScore', 2] },
           totalCandidates: 1,
           passedCandidates: 1,
@@ -754,7 +1261,226 @@ async findAllRegistrants(query: {
       }
     ]);
 
-    return averageScores;
+    // Add pass score information to each exam type
+    const enrichedScores = await Promise.all(
+      averageScores.map(async (score) => {
+        const passScore = await this.getPassScoreForExamType(score.examType);
+        return {
+          ...score,
+          passScore,
+        };
+      })
+    );
+
+    return enrichedScores;
+  }
+
+  async getPassFailAnalysisByExamType() {
+    const examTypes = [examType.promotion, examType.conversion, examType.confirmation];
+    
+    const analysis = await Promise.all(
+      examTypes.map(async (type) => {
+        const passScore = await this.getPassScoreForExamType(type);
+        
+        const results = await this.registrantsModel.aggregate([
+          {
+            $lookup: {
+              from: 'exams',
+              localField: 'exam',
+              foreignField: '_id',
+              as: 'examData'
+            }
+          },
+          {
+            $unwind: { 
+              path: '$examData', 
+              preserveNullAndEmptyArrays: false 
+            }
+          },
+          {
+            $match: {
+              'examData.examType': type
+            }
+          },
+          {
+            $addFields: {
+              calculatedTotalScore: {
+                $let: {
+                  vars: {
+                    validScores: {
+                      $filter: {
+                        input: [
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.generalPaperScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.generalPaperScoreTrail.score', -1] }, null] },
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.professionalPaperScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.professionalPaperScoreTrail.score', -1] }, null] },
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.interviewScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.interviewScoreTrail.score', -1] }, null] },
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.appraisalScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.appraisalScoreTrail.score', -1] }, null] },
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.seniorityScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.seniorityScoreTrail.score', -1] }, null] }
+                        ],
+                        cond: { $ne: ['$$this', null] }
+                      }
+                    }
+                  },
+                  in: {
+                    $cond: [
+                      { $gt: [{ $size: '$$validScores' }, 0] },
+                      { $divide: [{ $sum: '$$validScores' }, { $size: '$$validScores' }] },
+                      0
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalCandidates: { $sum: 1 },
+              passedByScore: {
+                $sum: {
+                  $cond: [{ $gte: ['$calculatedTotalScore', passScore] }, 1, 0]
+                }
+              },
+              passedByStatus: {
+                $sum: {
+                  $cond: [{ $eq: ['$examData.examStatus', examStatus.passed] }, 1, 0]
+                }
+              },
+              failedByStatus: {
+                $sum: {
+                  $cond: [{ $eq: ['$examData.examStatus', examStatus.failed] }, 1, 0]
+                }
+              },
+              pendingByStatus: {
+                $sum: {
+                  $cond: [{ $eq: ['$examData.examStatus', examStatus.pending] }, 1, 0]
+                }
+              },
+              avgScore: { $avg: '$calculatedTotalScore' }
+            }
+          }
+        ]);
+
+        const result = results[0] || {
+          totalCandidates: 17,
+          passedByScore: 70,
+          passedByStatus: 0,
+          failedByStatus: 0,
+          pendingByStatus: 0,
+          avgScore: 0
+        };
+
+        return {
+          examType: type,
+          passScore,
+          ...result,
+          avgScore: Math.round(result.avgScore * 100) / 100,
+          passRateByScore: result.totalCandidates > 0 
+            ? Math.round((result.passedByScore / result.totalCandidates) * 100 * 100) / 100 
+            : 0,
+          passRateByStatus: result.totalCandidates > 0 
+            ? Math.round((result.passedByStatus / result.totalCandidates) * 100 * 100) / 100 
+            : 0
+        };
+      })
+    );
+
+    return analysis;
+  }
+
+  // New method to update exam statuses based on calculated scores
+  async updateExamStatusesBasedOnScores(): Promise<{ updated: number; errors: any[] }> {
+    const errors = [];
+    let updated = 0;
+
+    try {
+      // Get all exam types and their pass scores
+      const examTypesWithScores = await Promise.all([
+        { type: examType.promotion, passScore: await this.getPassScoreForExamType(examType.promotion) },
+        { type: examType.conversion, passScore: await this.getPassScoreForExamType(examType.conversion) },
+        { type: examType.confirmation, passScore: await this.getPassScoreForExamType(examType.confirmation) },
+      ]);
+
+      for (const { type, passScore } of examTypesWithScores) {
+        const registrants = await this.registrantsModel.aggregate([
+          {
+            $lookup: {
+              from: 'exams',
+              localField: 'exam',
+              foreignField: '_id',
+              as: 'examData'
+            }
+          },
+          {
+            $unwind: { 
+              path: '$examData', 
+              preserveNullAndEmptyArrays: false 
+            }
+          },
+          {
+            $match: {
+              'examData.examType': type,
+              'examData.examStatus': examStatus.pending // Only update pending exams
+            }
+          },
+          {
+            $addFields: {
+              calculatedTotalScore: {
+                $let: {
+                  vars: {
+                    validScores: {
+                      $filter: {
+                        input: [
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.generalPaperScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.generalPaperScoreTrail.score', -1] }, null] },
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.professionalPaperScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.professionalPaperScoreTrail.score', -1] }, null] },
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.interviewScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.interviewScoreTrail.score', -1] }, null] },
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.appraisalScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.appraisalScoreTrail.score', -1] }, null] },
+                          { $cond: [{ $gt: [{ $size: { $ifNull: ['$examData.seniorityScoreTrail', []] } }, 0] }, { $arrayElemAt: ['$examData.seniorityScoreTrail.score', -1] }, null] }
+                        ],
+                        cond: { $ne: ['$$this', null] }
+                      }
+                    }
+                  },
+                  in: {
+                    $cond: [
+                      { $gt: [{ $size: '$$validScores' }, 0] },
+                      { $divide: [{ $sum: '$$validScores' }, { $size: '$$validScores' }] },
+                      0
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        ]);
+
+        // Update exam statuses based on calculated scores
+        for (const registrant of registrants) {
+          try {
+            const newStatus = registrant.calculatedTotalScore >= passScore 
+              ? examStatus.passed 
+              : examStatus.failed;
+
+            await this.examsModel.updateOne(
+              { _id: registrant.examData._id },
+              { examStatus: newStatus }
+            );
+            updated++;
+          } catch (error) {
+            errors.push({
+              examId: registrant.examData._id,
+              error: error.message
+            });
+          }
+        }
+      }
+
+      return { updated, errors };
+    } catch (error) {
+      throw new Error(`Failed to update exam statuses: ${error.message}`);
+    }
   }
 
 }
+
+ 
+

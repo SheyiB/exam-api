@@ -43,6 +43,10 @@ export class ExamsEntity extends Document {
   @Prop({ default: examStatus.pending })
   examStatus: string;
 
+  // Exam Score with trail
+  @Prop({ type: [ScoreEntrySchema], default: [] })
+  examScoreTrail: ScoreEntry[];
+
   // General Paper Score with trail
   @Prop({ type: [ScoreEntrySchema], default: [] })
   generalPaperScoreTrail: ScoreEntry[];
@@ -81,6 +85,22 @@ export class ExamsEntity extends Document {
 
   @Prop({})
   examNumber: string;
+
+  // Virtual getter for ExamScore
+  get examScore(): number | undefined {
+    const trail = this.examScoreTrail;
+    return trail.length > 0 ? trail[trail.length - 1].score : undefined;
+  }
+
+  get examScoreUploadedBy(): mongoose.Types.ObjectId | undefined {
+    const trail = this.examScoreTrail;
+    return trail.length > 0 ? trail[trail.length - 1].uploadedBy : undefined;
+  }
+
+  get examScoreUploadedAt(): Date | undefined {
+    const trail = this.examScoreTrail;
+    return trail.length > 0 ? trail[trail.length - 1].uploadedAt : undefined;
+  }
 
   // Virtual getters for the most recent scores
   get generalPaperScore(): number | undefined {
@@ -191,8 +211,12 @@ export class ExamsEntity extends Document {
 
 export const ExamsSchema = SchemaFactory.createForClass(ExamsEntity);
 
-// Add these virtual getters to the schema
+// Add virtual getters to the schema
 // This ensures they're included when converting to JSON/Object
+ExamsSchema.virtual('examScore');
+ExamsSchema.virtual('examScoreUploadedBy');
+ExamsSchema.virtual('examScoreUploadedAt');
+
 ExamsSchema.virtual('generalPaperScore');
 ExamsSchema.virtual('generalPaperScoreUploadedBy');
 ExamsSchema.virtual('generalPaperScoreUploadedAt');
