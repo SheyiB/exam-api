@@ -322,4 +322,42 @@ async examStatusByLevel(@Query('examType') examType?: examType): Promise<IRespon
       data: registrants,
     };
   }
+
+  @Get('analysis/pass-fail-by-type')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get detailed pass/fail analysis by exam type' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successfully retrieved pass/fail analysis.'
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error.'
+  })
+  async getPassFailAnalysisByExamType(): Promise<IResponse> {
+    const analysis = await this.registrantsService.getPassFailAnalysisByExamType();
+    
+    return {
+      data: analysis
+    };
+  }
+
+  @Get('analysis/scores-by-type')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get average scores by exam type with pass score information' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successfully retrieved average scores analysis.'
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error.'
+  })
+  async getAverageScoresByExamType(): Promise<IResponse> {
+    const scores = await this.registrantsService.getAverageScoresByExamType();
+    
+    return {
+      data: scores
+    };
+  }
 }

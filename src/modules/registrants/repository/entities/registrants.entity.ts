@@ -69,6 +69,9 @@ export class RegistrantsEntity extends Document {
   @Prop({  })
   profilePassport: string;
 
+  @Prop({})
+  employeePassport: string;
+
   @Prop({ required: true })
   email: string;
 

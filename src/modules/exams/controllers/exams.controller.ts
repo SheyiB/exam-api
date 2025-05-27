@@ -83,6 +83,7 @@ export class ExamsController {
     @Body(new ValidationPipe({ transform: true })) data: UpdateExamScoreDto,
   ): Promise<IResponse> {
     const { passScore } = data;
+ 
     const updatedScore = await this.examsService.updateExamScore(
       examType,
       passScore,

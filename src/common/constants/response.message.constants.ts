@@ -7,4 +7,5 @@ export enum ENUM_RESPONSE_MESSAGE {
   INVALID_EXAM_TYPE = 'Invalid exam type',
   EXAM_NOT_FOUND = 'Exam not found',
   INVALID_ROUTE = 'Invalid route! Use update exam route',
+  REGISTRANT_NOT_IN_NOMINAL_ROLL = 'Registrant not in nominal roll',
 }
