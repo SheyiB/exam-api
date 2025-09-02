@@ -5,6 +5,8 @@ import { RegistrantsModule } from 'src/modules/registrants/registrants.module';
 import { CommonModule } from 'src/common/common.module';
 import { UserModule } from 'src/modules/users/user.module';
 import { ExamsModule } from 'src/modules/exams/exams.module';
+import { PostgresModule } from 'src/common/database/postgres.module'; 
+import { CivilServantModule } from 'src/modules/civil-servants/civil-servant.module'; 
 
 
 @Module({
@@ -19,10 +21,12 @@ import { ExamsModule } from 'src/modules/exams/exams.module';
       }),
       inject: [ConfigService],
     }),
+    PostgresModule,
     RegistrantsModule,
     CommonModule,
     UserModule,
     ExamsModule,
+    CivilServantModule,
   ],
 })
 export class AppModule {}

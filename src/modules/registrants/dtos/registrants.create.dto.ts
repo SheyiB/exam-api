@@ -72,8 +72,8 @@ export class RegistrantCreateDto {
     description: 'NIN number of the registrant',
   })
   @IsString()
-  @IsOptional()
-  nin?: string;
+  @IsNotEmpty()
+  nin: string;
 
   @ApiProperty({
     example: 'Male',

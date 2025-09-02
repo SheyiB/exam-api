@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -24,6 +24,7 @@ import { ExamUpdateDto } from 'src/modules/exams/dtos/exams.update.dto';
 import { ExamPassScoreDoc, ExamPassScore } from 'src/modules/exams/repository/entities/exam.passScore.entity';
 import { RegistrantUpdateDto } from '../dtos/registrants.update.dto';
 import { EmployeeDoc, EmployeeEntity } from '../../employees/repository/entities/employee.entity'
+import { CivilServantService, CivilServant } from '../../civil-servants/civil-servant.service';
 interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -47,6 +48,8 @@ export class RegistrantsService implements IRegistrantsService {
     private readonly cloudinaryStorageService: CloudinaryStorageService,
 
     @InjectModel(ExamPassScore.name) private examPassScoreModel: Model<ExamPassScoreDoc>,
+
+    private readonly civilServantService: CivilServantService,
 
     @InjectModel(EmployeeEntity.name)
     private employeeModel: Model<EmployeeDoc>,
@@ -95,7 +98,10 @@ export class RegistrantsService implements IRegistrantsService {
 ): Promise<RegistrantsDoc> {
   let profilePictureUrl: string | undefined;
   
-  let newRegistrantData: any;
+   let newRegistrantData: any;
+   
+   let civilServant: CivilServant | null = null;
+
 
   const existingRegistrant = await this.registrantsModel.findOne({
     email: registrant.email,
@@ -108,17 +114,52 @@ export class RegistrantsService implements IRegistrantsService {
     });
   }
 
-   //is valid registrant in nominal roll
-   const employee = await this.employeeModel.findOne({
-     employeeId: registrant.staffVerificationNumber,
-   }).lean();
+   try {
+      // Try to find by NIN first (most reliable)
+      if (registrant.nin) {
+        civilServant = await this.civilServantService.findByNin(registrant.nin);
+      }
 
-   if (!employee) {
+      // If not found by NIN, try by service number
+      if (!civilServant && registrant.staffVerificationNumber) {
+        civilServant = await this.civilServantService.findByServiceNumber(registrant.staffVerificationNumber);
+      }
+
+      // If both NIN and service number are provided, validate they belong to the same person
+      if (registrant.nin && registrant.staffVerificationNumber) {
+        const validatedCivilServant = await this.civilServantService.validateCivilServant(
+          registrant.nin, 
+          registrant.staffVerificationNumber
+        );
+        
+        if (!validatedCivilServant) {
+          throw new BadRequestException({
+            statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+            message: 'NIN and Staff Verification Number do not match in our records',
+          });
+        }
+        
+        civilServant = validatedCivilServant;
+      }
+
+      if (!civilServant) {
+        throw new UnprocessableEntityException({
+          statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+          message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_IN_NOMINAL_ROLL,
+        });
+      }
+
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof UnprocessableEntityException) {
+        throw error;
+      }
+      
+      console.error('Error validating civil servant:', error);
       throw new UnprocessableEntityException({
-        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
-        message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_IN_NOMINAL_ROLL,
+        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_UNKNOWN_ERROR,
+        message: 'Error validating registrant against civil servant database',
       });
-   }
+    }
    
   if (registrant.profilePicture) {
     try {
@@ -128,6 +169,10 @@ export class RegistrantsService implements IRegistrantsService {
       );
     } catch (error) {
       console.error('Profile picture upload failed:', error);
+      throw new UnprocessableEntityException({
+        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+        message: 'Profile picture upload failed',
+      });
     }
   }
 
@@ -147,8 +192,10 @@ export class RegistrantsService implements IRegistrantsService {
     examStatus: ExamStatus.PENDING,
   });
    
-  newRegistrantData = { ...registrant };
-  newRegistrantData.employeePassport = employee.profilePassport; 
+   newRegistrantData = { 
+      ...registrant,
+      employeePassport: civilServant.passport_url
+    };
 
   const newRegistrant = await this.registrantsModel.create({
     ...newRegistrantData,
