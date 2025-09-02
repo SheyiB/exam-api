@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
-import { IsString, IsNotEmpty, IsBoolean, IsEmail, IsOptional, IsDate, ValidateNested, IsArray,  } from 'class-validator';
+import { IsString, IsNotEmpty, IsBoolean, IsEmail, IsOptional, IsDate, ValidateNested, IsArray, Length, Matches,  } from 'class-validator';
 import { ExamCreateDto } from 'src/modules/exams/dtos/exams.create.dto';
 
 export class QualificationDto {
@@ -67,12 +67,15 @@ export class RegistrantCreateDto {
   @IsOptional()
   staffVerificationNumber?: string;
 
-  @ApiPropertyOptional({
-    example: '56752358208',
-    description: 'NIN number of the registrant',
+  @ApiProperty({
+    example: '12345678901',
+    description: 'National Identification Number (NIN) - must be exactly 11 digits',
+    required: true,
   })
   @IsString()
   @IsNotEmpty()
+  @Length(11, 11, { message: 'NIN must be exactly 11 characters' })
+  @Matches(/^\d{11}$/, { message: 'NIN must contain only digits' })
   nin: string;
 
   @ApiProperty({

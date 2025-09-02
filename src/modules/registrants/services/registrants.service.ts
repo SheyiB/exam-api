@@ -24,7 +24,7 @@ import { ExamUpdateDto } from 'src/modules/exams/dtos/exams.update.dto';
 import { ExamPassScoreDoc, ExamPassScore } from 'src/modules/exams/repository/entities/exam.passScore.entity';
 import { RegistrantUpdateDto } from '../dtos/registrants.update.dto';
 import { EmployeeDoc, EmployeeEntity } from '../../employees/repository/entities/employee.entity'
-import { CivilServantService, CivilServant } from '../../civil-servants/civil-servant.service';
+import { CivilServantsService } from '../../civil-servants/civil-servants.service';
 interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -49,7 +49,7 @@ export class RegistrantsService implements IRegistrantsService {
 
     @InjectModel(ExamPassScore.name) private examPassScoreModel: Model<ExamPassScoreDoc>,
 
-    private readonly civilServantService: CivilServantService,
+     private readonly civilServantsService: CivilServantsService,
 
     @InjectModel(EmployeeEntity.name)
     private employeeModel: Model<EmployeeDoc>,
@@ -98,11 +98,8 @@ export class RegistrantsService implements IRegistrantsService {
 ): Promise<RegistrantsDoc> {
   let profilePictureUrl: string | undefined;
   
-   let newRegistrantData: any;
+  let newRegistrantData: any;
    
-   let civilServant: CivilServant | null = null;
-
-
   const existingRegistrant = await this.registrantsModel.findOne({
     email: registrant.email,
   }).lean();
@@ -114,52 +111,36 @@ export class RegistrantsService implements IRegistrantsService {
     });
   }
 
-   try {
-      // Try to find by NIN first (most reliable)
-      if (registrant.nin) {
-        civilServant = await this.civilServantService.findByNin(registrant.nin);
-      }
+  let civilServant = null;
+  
+  if (registrant.nin) {
+    civilServant = await this.civilServantsService.findByNin(registrant.nin);
+  }
+   
+  if (!civilServant && registrant.staffVerificationNumber) {
+    const civilServants = await this.civilServantsService.findByCriteria({
+      idCardServiceNumber: registrant.staffVerificationNumber,
+    });
+    civilServant = civilServants[0] || null;
+  }
 
-      // If not found by NIN, try by service number
-      if (!civilServant && registrant.staffVerificationNumber) {
-        civilServant = await this.civilServantService.findByServiceNumber(registrant.staffVerificationNumber);
-      }
+  // If still not found, try by name combination
+  if (!civilServant) {
+    const civilServants = await this.civilServantsService.findByCriteria({
+      surname: registrant.surname,
+      firstname: registrant.firstName,
+    });
+    civilServant = civilServants[0] || null;
+  }
+   
+  if (!civilServant) {
+    throw new UnprocessableEntityException({
+      statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+      message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_IN_NOMINAL_ROLL,
+    });
+  }
 
-      // If both NIN and service number are provided, validate they belong to the same person
-      if (registrant.nin && registrant.staffVerificationNumber) {
-        const validatedCivilServant = await this.civilServantService.validateCivilServant(
-          registrant.nin, 
-          registrant.staffVerificationNumber
-        );
-        
-        if (!validatedCivilServant) {
-          throw new BadRequestException({
-            statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
-            message: 'NIN and Staff Verification Number do not match in our records',
-          });
-        }
-        
-        civilServant = validatedCivilServant;
-      }
-
-      if (!civilServant) {
-        throw new UnprocessableEntityException({
-          statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
-          message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_IN_NOMINAL_ROLL,
-        });
-      }
-
-    } catch (error) {
-      if (error instanceof BadRequestException || error instanceof UnprocessableEntityException) {
-        throw error;
-      }
-      
-      console.error('Error validating civil servant:', error);
-      throw new UnprocessableEntityException({
-        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_UNKNOWN_ERROR,
-        message: 'Error validating registrant against civil servant database',
-      });
-    }
+   console.log(civilServant);
    
   if (registrant.profilePicture) {
     try {
@@ -194,7 +175,7 @@ export class RegistrantsService implements IRegistrantsService {
    
    newRegistrantData = { 
       ...registrant,
-      employeePassport: civilServant.passport_url
+      employeePassport: civilServant.passportUrl
     };
 
   const newRegistrant = await this.registrantsModel.create({
