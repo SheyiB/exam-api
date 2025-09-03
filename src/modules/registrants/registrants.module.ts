@@ -12,6 +12,7 @@ import { ExamsEntity, ExamsSchema } from '../exams/repository/entities/exams.ent
 import { EmployeeEntity, EmployeeSchema } from '../employees/repository/entities/employee.entity';
 import { ExamPassScore, ExamPassScoreSchema } from '../exams/repository/entities/exam.passScore.entity'
 import { CivilServantsModule } from '../civil-servants/civil-servants.module'; 
+import { EmailModule } from 'src/common/email/email.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CivilServantsModule } from '../civil-servants/civil-servants.module';
     CloudinaryModule,
     ExamsModule,
     CivilServantsModule, 
+    EmailModule,
   ],
   controllers: [RegistrantsController],
   providers: [RegistrantsService],

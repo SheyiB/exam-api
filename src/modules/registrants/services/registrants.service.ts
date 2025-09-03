@@ -25,6 +25,7 @@ import { ExamPassScoreDoc, ExamPassScore } from 'src/modules/exams/repository/en
 import { RegistrantUpdateDto } from '../dtos/registrants.update.dto';
 import { EmployeeDoc, EmployeeEntity } from '../../employees/repository/entities/employee.entity'
 import { CivilServantsService } from '../../civil-servants/civil-servants.service';
+import { EmailService } from 'src/common/email/services/email.service';
 interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -53,6 +54,8 @@ export class RegistrantsService implements IRegistrantsService {
 
     @InjectModel(EmployeeEntity.name)
     private employeeModel: Model<EmployeeDoc>,
+
+     private readonly emailService: EmailService,
   ) {}
 
   private generateExamNumber(registeredUsers: number, registrantExamType: string): string {
@@ -188,7 +191,9 @@ export class RegistrantsService implements IRegistrantsService {
     .findById(newRegistrant._id)
     .populate('exam')
     .lean();
-
+   
+  this.emailService.sendWelcomeEmail
+   
   return populatedRegistrant;
 }
 
@@ -238,6 +243,7 @@ export class RegistrantsService implements IRegistrantsService {
     updatedRegistrant,
     { new: true }
   );
+    
 
   return savedRegistrant;
 }
@@ -323,7 +329,9 @@ export class RegistrantsService implements IRegistrantsService {
   // Update exam status based on total score
   exam.examStatus = total < 50 ? examStatus.failed : examStatus.passed;
 
-  await exam.save();
+   await exam.save();
+  
+   
   return exam;
 }
 
