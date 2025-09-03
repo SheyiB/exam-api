@@ -5,6 +5,7 @@ import { RegistrantsModule } from 'src/modules/registrants/registrants.module';
 import { CommonModule } from 'src/common/common.module';
 import { UserModule } from 'src/modules/users/user.module';
 import { ExamsModule } from 'src/modules/exams/exams.module';
+import { CivilServantsModule } from 'src/modules/civil-servants/civil-servants.module';
 
 
 @Module({
@@ -23,6 +24,7 @@ import { ExamsModule } from 'src/modules/exams/exams.module';
     CommonModule,
     UserModule,
     ExamsModule,
+    CivilServantsModule,
   ],
 })
 export class AppModule {}

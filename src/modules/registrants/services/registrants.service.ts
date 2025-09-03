@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -24,6 +24,8 @@ import { ExamUpdateDto } from 'src/modules/exams/dtos/exams.update.dto';
 import { ExamPassScoreDoc, ExamPassScore } from 'src/modules/exams/repository/entities/exam.passScore.entity';
 import { RegistrantUpdateDto } from '../dtos/registrants.update.dto';
 import { EmployeeDoc, EmployeeEntity } from '../../employees/repository/entities/employee.entity'
+import { CivilServantsService } from '../../civil-servants/civil-servants.service';
+import { EmailService } from 'src/common/email/services/email.service';
 interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -48,8 +50,12 @@ export class RegistrantsService implements IRegistrantsService {
 
     @InjectModel(ExamPassScore.name) private examPassScoreModel: Model<ExamPassScoreDoc>,
 
+     private readonly civilServantsService: CivilServantsService,
+
     @InjectModel(EmployeeEntity.name)
     private employeeModel: Model<EmployeeDoc>,
+
+     private readonly emailService: EmailService,
   ) {}
 
   private generateExamNumber(registeredUsers: number, registrantExamType: string): string {
@@ -96,7 +102,7 @@ export class RegistrantsService implements IRegistrantsService {
   let profilePictureUrl: string | undefined;
   
   let newRegistrantData: any;
-
+   
   const existingRegistrant = await this.registrantsModel.findOne({
     email: registrant.email,
   }).lean();
@@ -108,17 +114,36 @@ export class RegistrantsService implements IRegistrantsService {
     });
   }
 
-   //is valid registrant in nominal roll
-   const employee = await this.employeeModel.findOne({
-     employeeId: registrant.staffVerificationNumber,
-   }).lean();
+  let civilServant = null;
+  
+  if (registrant.nin) {
+    civilServant = await this.civilServantsService.findByNin(registrant.nin);
+  }
+   
+  if (!civilServant && registrant.staffVerificationNumber) {
+    const civilServants = await this.civilServantsService.findByCriteria({
+      idCardServiceNumber: registrant.staffVerificationNumber,
+    });
+    civilServant = civilServants[0] || null;
+  }
 
-   if (!employee) {
-      throw new UnprocessableEntityException({
-        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
-        message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_IN_NOMINAL_ROLL,
-      });
-   }
+  // If still not found, try by name combination
+  if (!civilServant) {
+    const civilServants = await this.civilServantsService.findByCriteria({
+      surname: registrant.surname,
+      firstname: registrant.firstName,
+    });
+    civilServant = civilServants[0] || null;
+  }
+   
+  if (!civilServant) {
+    throw new UnprocessableEntityException({
+      statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+      message: ENUM_RESPONSE_MESSAGE.REGISTRANT_NOT_IN_NOMINAL_ROLL,
+    });
+  }
+
+   console.log(civilServant);
    
   if (registrant.profilePicture) {
     try {
@@ -128,6 +153,10 @@ export class RegistrantsService implements IRegistrantsService {
       );
     } catch (error) {
       console.error('Profile picture upload failed:', error);
+      throw new UnprocessableEntityException({
+        statusCode: ENUM_REQUEST_STATUS_CODE_ERROR.REQUEST_VALIDATION_ERROR,
+        message: 'Profile picture upload failed',
+      });
     }
   }
 
@@ -147,8 +176,10 @@ export class RegistrantsService implements IRegistrantsService {
     examStatus: ExamStatus.PENDING,
   });
    
-  newRegistrantData = { ...registrant };
-  newRegistrantData.employeePassport = employee.profilePassport; 
+   newRegistrantData = { 
+      ...registrant,
+      employeePassport: civilServant.passportUrl
+    };
 
   const newRegistrant = await this.registrantsModel.create({
     ...newRegistrantData,
@@ -160,7 +191,9 @@ export class RegistrantsService implements IRegistrantsService {
     .findById(newRegistrant._id)
     .populate('exam')
     .lean();
-
+   
+  this.emailService.sendWelcomeEmail
+   
   return populatedRegistrant;
 }
 
@@ -210,6 +243,7 @@ export class RegistrantsService implements IRegistrantsService {
     updatedRegistrant,
     { new: true }
   );
+    
 
   return savedRegistrant;
 }
@@ -295,7 +329,9 @@ export class RegistrantsService implements IRegistrantsService {
   // Update exam status based on total score
   exam.examStatus = total < 50 ? examStatus.failed : examStatus.passed;
 
-  await exam.save();
+   await exam.save();
+  
+   
   return exam;
 }
 

@@ -2,6 +2,7 @@ import { NestApplication, NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app/app.module';
 import swaggerInit from './swagger';
+import { join } from 'path';
 
 async function bootstrap() {
   const app: NestApplication = await NestFactory.create(AppModule);
@@ -11,6 +12,9 @@ async function bootstrap() {
     methods: '*',
     allowedHeaders: '*',
   });
+
+  app.useStaticAssets(join(__dirname, '..', 'public'));
+
 
   await swaggerInit(app);
 

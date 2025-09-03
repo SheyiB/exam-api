@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model CivilServant {
+  id                                  Int                   @id @default(autoincrement())
+  surname                             String                @db.VarChar(100)
+  firstname                           String                @db.VarChar(100)
+  middlename                          String?               @db.VarChar(100)
+  gender                              gender_enum
+  dateOfBirth                         DateTime              @map("date_of_birth") @db.Date
+  phoneNumber                         String                @map("phone_number") @db.VarChar(20)
+  email                               String?               @db.VarChar(100)
+  homeAddress                         String                @map("home_address")
+  nationality                         String                @db.VarChar(50)
+  maritalStatus                       marital_status_enum   @map("marital_status")
+  maritalStatusOther                  String?               @map("marital_status_other") @db.VarChar(50)
+  idCardServiceNumber                 String                @map("id_card_service_number") @db.VarChar(50)
+  nin                                 String                @unique(map: "unique_nin") @db.VarChar(11)
+  verificationCode                    String                @map("verification_code") @db.VarChar(50)
+  stateOfOrigin                       state_enum            @map("state_of_origin")
+  localGovernmentArea                 String                @map("local_government_area") @db.VarChar(100)
+  cadre                               cadre_enum
+  cadreOther                          String?               @map("cadre_other") @db.VarChar(200)
+  department                          String                @db.VarChar(200)
+  gradeLevel                          Int                   @map("grade_level")
+  dutyStation                         String                @map("duty_station") @db.VarChar(200)
+  typeOfAppointment                   appointment_type_enum @map("type_of_appointment")
+  dateOfFirstAppointment              DateTime              @map("date_of_first_appointment") @db.Date
+  dateOfConfirmation                  DateTime?             @map("date_of_confirmation") @db.Date
+  dateOfPreviousAppointment           DateTime              @map("date_of_previous_appointment") @db.Date
+  dateOfPresentAppointment            DateTime              @map("date_of_present_appointment") @db.Date
+  currentMda                          mda_enum              @map("current_mda")
+  mdaOther                            String?               @map("mda_other") @db.VarChar(200)
+  previousMdas                        Json?                 @map("previous_mdas")
+  academicQualifications              String                @map("academic_qualifications")
+  dateOfFirstSchoolLeavingCertificate DateTime              @map("date_of_first_school_leaving_certificate") @db.Date
+  areasOfCoreCompetency               Json                  @map("areas_of_core_competency")
+  passportUrl                         String?               @map("passport_url") @db.VarChar(500)
+  consentGiven                        Boolean               @default(true) @map("consent_given")
+  createdAt                           DateTime?             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                           DateTime?             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([cadre], map: "idx_cadre")
+  @@index([currentMda], map: "idx_current_mda")
+  @@index([gradeLevel], map: "idx_grade_level")
+  @@index([idCardServiceNumber], map: "idx_id_card_service_number")
+  @@index([nin], map: "idx_nin")
+  @@index([stateOfOrigin], map: "idx_state_of_origin")
+  @@index([surname, firstname], map: "idx_surname_firstname")
+  @@map("civil_servants")
+}
+
+enum appointment_type_enum {
+  Permanent
+  Temporary
+  Contract
+}
+
+enum cadre_enum {
+  AGRIC_OFFICER_SUPT_FIELD_ASST_CADRE           @map("AGRIC OFFICER/SUPT/FIELD ASST.CADRE")
+  ENGINEERING_CIVIL_MECHANICAL_ELECTRICAL_CADRE @map("ENGINEERING/CIVIL/MECHANICAL/ELECTRICAL CADRE")
+  STATE_COUNSEL                                 @map("STATE COUNSEL")
+  ACCOUNTING_EXECUTIVE_OFFR_A_C__CADRE          @map("ACCOUNTING/EXECUTIVE OFFR(A/C) CADRE")
+  LIBRARIAN_LIBRARY_OFFICER_CADRE               @map("LIBRARIAN/LIBRARY OFFICER CADRE")
+  STATISTICIAN_CADRE                            @map("STATISTICIAN CADRE")
+  SCIENTIFIC_OFFICERS_CADRE                     @map("SCIENTIFIC OFFICERS CADRE")
+  SOCIAL_WELFARE_OFFICERS__ASST_CADRE           @map("SOCIAL WELFARE OFFICERS /ASST CADRE")
+  INFORMATION_OFFICER_CADRE                     @map("INFORMATION OFFICER CADRE")
+  COMMUNITY_DEVELOPMENT_CADRE                   @map("COMMUNITY DEVELOPMENT CADRE")
+  QUANTITY_SURVEY_CADRE                         @map("QUANTITY SURVEY CADRE")
+  TECHNICAL_OFFICER_CADRE                       @map("TECHNICAL OFFICER CADRE")
+  ESTATE_OFFICER_CADRE                          @map("ESTATE OFFICER CADRE")
+  VETERINARY_OFFICER_TECH__CADRE                @map("VETERINARY OFFICER/TECH. CADRE")
+  EDUCATION_OFFICER_ASSISTANT_CADRE             @map("EDUCATION OFFICER/ASSISTANT CADRE")
+  LIVESTOCK_CADRE                               @map("LIVESTOCK CADRE")
+  STORES_CADRE                                  @map("STORES CADRE")
+  DATA_PROCESSING_OFFICER_CADRE                 @map("DATA PROCESSING OFFICER CADRE")
+  TRADE_COMMERCIAL_OFFR_CADRE                   @map("TRADE/COMMERCIAL OFFR CADRE")
+  PLANNING_OFFICER_CADRE                        @map("PLANNING OFFICER CADRE")
+  MEDICAL_HEALTH_RECORD_CADRE                   @map("MEDICAL/HEALTH RECORD CADRE")
+  PROGRAMME_ANALYST_CADRE                       @map("PROGRAMME ANALYST CADRE")
+  ENVIRONMENTAL_HEALTH_CADRE                    @map("ENVIRONMENTAL HEALTH CADRE")
+  MED_LAB_LAB_TECHNOLOGIST_CADRE                @map("MED LAB/LAB TECHNOLOGIST CADRE")
+  COMMUNITY_HEALTH_CADRE                        @map("COMMUNITY HEALTH CADRE")
+  YOUTH_DEVELOPMENT_SPORT_ASSISTANT_COACH_CADRE @map("YOUTH DEVELOPMENT/SPORT/ASSISTANT COACH CADRE")
+  PHARMACY_PHARMACY_TECHNICIAN_CADRE            @map("PHARMACY/PHARMACY TECHNICIAN CADRE")
+  NURSING_CADRE                                 @map("NURSING CADRE")
+  WORKS_SUPT_TECHNICAL_MOTOR_DRIVER_CADRE       @map("WORKS SUPT/TECHNICAL/MOTOR DRIVER CADRE")
+  AUDIT_CADRE                                   @map("AUDIT CADRE")
+  EXECUTIVE_OFFICER__GD__CADRE                  @map("EXECUTIVE OFFICER (GD) CADRE")
+  ADMIN_OFFICERS_CADRE                          @map("ADMIN OFFICERS CADRE")
+  MEDICAL_DENTAL_OFFICERS_CADRE                 @map("MEDICAL/DENTAL OFFICERS CADRE")
+  COOPERATIVE_OFFICERS__INSPECTOR_CADRE         @map("COOPERATIVE OFFICERS/ INSPECTOR CADRE")
+  REGISTRAR_OF_CO_OP_CADRE                      @map("REGISTRAR OF CO-OP CADRE")
+  LEGISLATIVE_OFFICERS_CADRE                    @map("LEGISLATIVE OFFICERS CADRE")
+  DATA_PROCESSING_OFFICERS                      @map("DATA PROCESSING OFFICERS")
+  STATISTICIAN_STATISTICAL_OFFICERS_SUPT        @map("STATISTICIAN/STATISTICAL OFFICERS/SUPT")
+  CONFIDENCIAL_SECRETARY                        @map("CONFIDENCIAL SECRETARY")
+  CULTURAL_TOURISM_OFFICER__EXECUTIVE           @map("CULTURAL/TOURISM OFFICER/ EXECUTIVE")
+  AUDITOR
+  CATERING_OFFICER_INSTRUCTOR_CADRE             @map("CATERING OFFICER/INSTRUCTOR CADRE")
+  Others
+}
+
+enum gender_enum {
+  Male
+  Female
+}
+
+enum marital_status_enum {
+  Single
+  Married
+  Divorced
+  Widowed
+  Other
+}
+
+enum mda_enum {
+  Ministry_of_Basic_and_Secondary_Education             @map("Ministry of Basic and Secondary Education")
+  Ministry_of_Tertiary_Education                        @map("Ministry of Tertiary Education")
+  Abia_State_Universal_Basic_Education__ASUBEB_         @map("Abia State Universal Basic Education (ASUBEB)")
+  Ministry_of_Health                                    @map("Ministry of Health")
+  Abia_State_Primary_Healthcare_Development_Agency      @map("Abia State Primary Healthcare Development Agency")
+  Abia_State_Hospitals_Management_Board_HMB_            @map("Abia State Hospitals Management Board(HMB)")
+  Ministry_of_Agriculture                               @map("Ministry of Agriculture")
+  Ministry_of_Environment                               @map("Ministry of Environment")
+  Abia_State_Environmental_Protection_Agency__ASEPA_    @map("Abia State Environmental Protection Agency (ASEPA)")
+  Ministry_of_Justice                                   @map("Ministry of Justice")
+  Abia_State_Law_Reform_Commission                      @map("Abia State Law Reform Commission")
+  Ministry_of_Youth_and_Sports                          @map("Ministry of Youth and Sports")
+  Abia_State_Sports_Council                             @map("Abia State Sports Council")
+  Ministry_of_Trade_and_Commerce                        @map("Ministry of Trade and Commerce")
+  Ministry_of_Information                               @map("Ministry of Information")
+  Abia_State_Broadcasting_Corporation__BCA_             @map("Abia State Broadcasting Corporation (BCA)")
+  Ministry_of_Lands_and_Housing                         @map("Ministry of Lands and Housing")
+  Ministry_of_Local_Government___Chieftaincy_Affairs    @map("Ministry of Local Government & Chieftaincy Affairs")
+  Abia_State_Local_Government_Service_Commission        @map("Abia State Local Government Service Commission")
+  Ministry_of_Women_Affairs                             @map("Ministry of Women Affairs")
+  Ministry_of_Poverty_Alleviation_and_Social_Protection @map("Ministry of Poverty Alleviation and Social Protection")
+  Ministry_of_Power_and_Public_Utilities                @map("Ministry of Power and Public Utilities")
+  Ministry_of_Transport                                 @map("Ministry of Transport")
+  Ministry_of_Arts__Culture___the_Creative_Economy      @map("Ministry of Arts, Culture & the Creative Economy")
+  Abia_State_Tourism_Development_Agency                 @map("Abia State Tourism Development Agency")
+  Ministry_of_Petroleum_and_Mineral_Resources           @map("Ministry of Petroleum and Mineral Resources")
+  Ministry_of_Science__Technology___Innovation          @map("Ministry of Science, Technology & Innovation")
+  Abia_State_Innovation_and_Technology_Agency           @map("Abia State Innovation and Technology Agency")
+  Ministry_of_Industry_and_SMEs                         @map("Ministry of Industry and SMEs")
+  Ministry_of_Finance                                   @map("Ministry of Finance")
+  Ministry_of_Budget_and_Planning                       @map("Ministry of Budget and Planning")
+  Ministry_of_Works                                     @map("Ministry of Works")
+  Ministry_of_Labour_and_Productivity                   @map("Ministry of Labour and Productivity")
+  UCDA
+  GADA
+  BUREAU_OF_ESTABLISHMENT                               @map("BUREAU OF ESTABLISHMENT")
+  BUREAU_OF_SERVICE_WELFARE                             @map("BUREAU OF SERVICE WELFARE")
+  BUREAU_OF_TRAINING                                    @map("BUREAU OF TRAINING")
+  BUREAU_OF_COMMON_SERVICES                             @map("BUREAU OF COMMON SERVICES")
+  SSG
+  SPECIAL_SERVICES_BUREAU                               @map("SPECIAL SERVICES BUREAU")
+  OHOS_BOA_CM_                                          @map("OHOS(BOA&CM)")
+  BIR
+  FIRE_SERVICE                                          @map("FIRE SERVICE")
+  TOURISM_BOARD                                         @map("TOURISM BOARD")
+  Water_Board                                           @map("Water Board")
+  State_Audit                                           @map("State Audit")
+  Abia_House_of_Assembly                                @map("Abia House of Assembly")
+  Ministry_of_Homeland_Security                         @map("Ministry of Homeland Security")
+  RUWASA
+  Deputy_Governor_s_Office                              @map("Deputy Governor's Office")
+  Government_House                                      @map("Government House")
+  ABSIEC
+  ABIA_NEWSPAPER                                        @map("ABIA NEWSPAPER")
+  ADP
+  ASOPADEC
+  LOCAL_GOVERNMENT_SERVICE_COMMISSION                   @map("LOCAL GOVERNMENT SERVICE COMMISSION")
+  CIVIL_SERVICE_COMMISSION                              @map("CIVIL SERVICE COMMISSION")
+  ABIA_LIBRARY_BOARD                                    @map("ABIA LIBRARY BOARD")
+  MINISTRY_OF_SCIENCE_AND_TECH                          @map("MINISTRY OF SCIENCE AND TECH")
+  LOCAL_GOVERNMENT_AUDIT                                @map("LOCAL GOVERNMENT AUDIT")
+  OTHERS
+}
+
+enum state_enum {
+  Abia
+  Adamawa
+  Akwa_Ibom   @map("Akwa Ibom")
+  Anambra
+  Bauchi
+  Bayelsa
+  Benue
+  Borno
+  Cross_River @map("Cross River")
+  Delta
+  Ebonyi
+  Edo
+  Ekiti
+  Enugu
+  Gombe
+  Imo
+  Jigawa
+  Kano
+  Kaduna
+  Katsina
+  Kebbi
+  Kogi
+  Kwara
+  Lagos
+  Nasarawa
+  Ogun
+  Ondo
+  Osun
+  Oyo
+  Niger
+  Plateau
+  Rivers
+  Sokoto
+  Zamfara
+  Yobe
+  Taraba
+}
