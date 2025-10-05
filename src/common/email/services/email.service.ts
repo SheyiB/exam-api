@@ -1,9 +1,10 @@
-
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
+import * as puppeteer from 'puppeteer';
 import { getEmailConfig } from '../email.config';
+import { generateExamSlipTemplate } from '../constants/examSlipTemplate.js'
 
 export interface EmailOptions {
   to: string | string[];
@@ -11,6 +12,32 @@ export interface EmailOptions {
   html?: string;
   text?: string;
   attachments?: any[];
+}
+
+export interface RegistrantData {
+  email: string;
+  firstName: string;
+  surname: string;
+  middleName?: string;
+  examNumber?: string;
+  examType?: string;
+  examDate?: Date;
+  phone?: string;
+  gender?: string;
+  dateOfBirth?: Date;
+  staffVerificationNumber?: string;
+  nin?: string;
+  cadre?: string;
+  mda?: string;
+  disability?: boolean;
+  presentRank?: string;
+  presentGradeLevel?: string;
+  presentStep?: string;
+  expectedRank?: string;
+  expectedGradeLevel?: string;
+  dateOfFirstAppointment?: Date;
+  profilePassport?: string;
+  employeePassport?: string;
 }
 
 @Injectable()
@@ -22,275 +49,82 @@ export class EmailService {
     this.createTransporter();
   }
 
-  private generateRegistrationSlipTemplate(data: {
-    email: string;
-    firstName: string;
-    surname: string;
-    middleName?: string;
-    examNumber?: string;
-    examType?: string;
-    examDate?: Date;
-    phone?: string;
-    gender?: string;
-    dateOfBirth?: Date;
-    staffVerificationNumber?: string;
-    nin?: string;
-    cadre?: string;
-    mda?: string;
-    disability?: boolean;
-    presentRank?: string;
-    presentGradeLevel?: string;
-    presentStep?: string;
-    expectedRank?: string;
-    expectedGradeLevel?: string;
-    dateOfFirstAppointment?: Date;
-    profilePassport?: string;
-    employeePassport?: string;
-  }): string {
-    const currentYear = new Date().getFullYear();
-    // Use environment variable or fallback to placeholder
-    const logoUrl = this.configService.get('SEB_LOGO_URL') || 'https://via.placeholder.com/140x80/15411f/white?text=SEB+LOGO';
+  private generateRegistrationSlipTemplate(data: RegistrantData): string {
+  const logoUrl = this.configService.get('SEB_LOGO_URL') || 'https://via.placeholder.com/140x80/15411f/white?text=SEB+LOGO';
+  
+  return generateExamSlipTemplate(data, {
+    logoUrl,
+    profilePhotoUrl: data.profilePassport,
+    employeePhotoUrl: data.employeePassport,
+    isBackend: true
+  });
+}
+
+  private async generateRegistrationSlipPDF(data: RegistrantData): Promise<Buffer> {
+    let browser: puppeteer.Browser | null = null;
     
-    return `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>SEB Examination Registration Slip</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                line-height: 1.4;
-                color: #333;
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 15px;
-                background-color: #f5f5f5;
-            }
-            .slip-container {
-                background-color: white;
-                padding: 25px;
-                border-radius: 10px;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            }
-            .header {
-                text-align: center;
-                margin-bottom: 25px;
-            }
-            .logo {
-                width: 140px;
-                height: auto;
-                margin-bottom: 15px;
-            }
-            .title {
-                color: #15411f;
-                font-weight: bold;
-                font-size: 22px;
-                text-transform: uppercase;
-                margin: 0;
-                line-height: 1.2;
-            }
-            .content-box {
-                border: 2px solid #15411f;
-                padding: 25px;
-                border-radius: 10px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            .photos-section {
-                display: flex;
-                justify-content: center;
-                gap: 40px;
-                margin-bottom: 25px;
-                align-items: center;
-            }
-            .photo-container {
-                text-align: center;
-            }
-            .photo-frame {
-                width: 150px;
-                height: 150px;
-                border: 3px solid #15411f;
-                border-radius: 8px;
-                overflow: hidden;
-                margin-bottom: 10px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background-color: #f8f9fa;
-            }
-            .photo-frame img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-            }
-            .no-photo {
-                color: #666;
-                font-size: 14px;
-                font-style: italic;
-            }
-            .photo-label {
-                font-size: 14px;
-                font-weight: bold;
-                color: #15411f;
-            }
-            .details-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 20px;
-                margin-bottom: 20px;
-            }
-            .detail-box {
-                background-color: #f9f9f9;
-                padding: 15px;
-                border-radius: 8px;
-                border-left: 4px solid #15411f;
-            }
-            .detail-item {
-                margin: 8px 0;
-                font-size: 16px;
-            }
-            .detail-item strong {
-                color: #15411f;
-                font-weight: bold;
-            }
-            .section-title {
-                color: #15411f;
-                font-size: 18px;
-                font-weight: bold;
-                margin-bottom: 15px;
-                text-align: center;
-            }
-            .position-section {
-                margin-top: 20px;
-                background-color: #f9f9f9;
-                padding: 20px;
-                border-radius: 8px;
-                border-top: 3px solid #15411f;
-            }
-            .position-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 20px;
-            }
-            .notice-section {
-                margin-top: 25px;
-                text-align: center;
-                padding: 15px;
-                background-color: #f2f8f3;
-                border-radius: 8px;
-                border-top: 3px solid #15411f;
-            }
-            .notice-title {
-                font-weight: bold;
-                color: #15411f;
-                font-size: 18px;
-                margin-bottom: 8px;
-            }
-            .footer {
-                text-align: center;
-                margin-top: 20px;
-                font-size: 12px;
-                color: #666;
-            }
-            @media (max-width: 600px) {
-                .details-grid, .position-grid {
-                    grid-template-columns: 1fr;
-                }
-                .photos-section {
-                    flex-direction: column;
-                    gap: 20px;
-                }
-                .photo-frame {
-                    width: 130px;
-                    height: 130px;
-                }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="slip-container">
-            <div class="header">
-                <img src="${logoUrl}" alt="SEB Logo" class="logo" onerror="this.style.display='none'">
-                <h1 class="title">${currentYear} ${data.examType?.toUpperCase() || 'PROMOTIONAL'} EXAMINATION REGISTRATION SLIP</h1>
-            </div>
-            
-            <div class="content-box">
-                <h2 class="section-title">Registration Details</h2>
-                
-                <div class="photos-section">
-                    <div class="photo-container">
-                        <div class="photo-frame">
-                            ${data.profilePassport ? 
-                                `<img src="${data.profilePassport}" alt="Profile Photo" onerror="this.parentElement.innerHTML='<div class=\\"no-photo\\">Photo Not Available</div>'">` : 
-                                `<div class="no-photo">No Photo Available</div>`
-                            }
-                        </div>
-                        <div class="photo-label">Profile Photo (Uploaded)</div>
-                    </div>
-                    
-                    <div class="photo-container">
-                        <div class="photo-frame">
-                            ${data.employeePassport ? 
-                                `<img src="${data.employeePassport}" alt="Employee Photo" onerror="this.parentElement.innerHTML='<div class=\\"no-photo\\">Photo Not Available</div>'">` : 
-                                `<div class="no-photo">No Photo Available</div>`
-                            }
-                        </div>
-                        <div class="photo-label">Profile Photo (Nominal Roll)</div>
-                    </div>
-                </div>
-                
-                <div class="details-grid">
-                    <div class="detail-box">
-                        <div class="detail-item"><strong>Exam Number:</strong> ${data.examNumber || 'N/A'}</div>
-                        <div class="detail-item"><strong>Full Name:</strong> ${data.surname || ''} ${data.firstName || ''} ${data.middleName || ''}</div>
-                        <div class="detail-item"><strong>Email:</strong> ${data.email || 'N/A'}</div>
-                        <div class="detail-item"><strong>Phone No:</strong> ${data.phone || 'N/A'}</div>
-                        <div class="detail-item"><strong>Gender:</strong> ${data.gender || 'N/A'}</div>
-                        <div class="detail-item"><strong>Date of Birth:</strong> ${data.dateOfBirth ? new Date(data.dateOfBirth).toLocaleDateString() : 'N/A'}</div>
-                    </div>
-                    
-                    <div class="detail-box">
-                        <div class="detail-item"><strong>Staff Verification Number:</strong> ${data.staffVerificationNumber || 'N/A'}</div>
-                        <div class="detail-item"><strong>NIN:</strong> ${data.nin || 'N/A'}</div>
-                        <div class="detail-item"><strong>Cadre:</strong> ${data.cadre || 'N/A'}</div>
-                        <div class="detail-item"><strong>MDA:</strong> ${data.mda || 'N/A'}</div>
-                        <div class="detail-item"><strong>Disability Status:</strong> ${data.disability ? "Yes" : "No"}</div>
-                        <div class="detail-item"><strong>Exam Date:</strong> ${data.examDate ? new Date(data.examDate).toLocaleDateString() : 'TBD'}</div>
-                    </div>
-                </div>
-                
-                <div class="position-section">
-                    <h3 class="section-title">Position Details</h3>
-                    <div class="position-grid">
-                        <div>
-                            <div class="detail-item"><strong>Present Rank:</strong> ${data.presentRank || 'N/A'}</div>
-                            <div class="detail-item"><strong>Grade Level:</strong> ${data.presentGradeLevel || 'N/A'}</div>
-                            <div class="detail-item"><strong>Step:</strong> ${data.presentStep || 'N/A'}</div>
-                        </div>
-                        <div>
-                            <div class="detail-item"><strong>Expected Rank:</strong> ${data.expectedRank || 'N/A'}</div>
-                            <div class="detail-item"><strong>Expected Grade Level:</strong> ${data.expectedGradeLevel || 'N/A'}</div>
-                            <div class="detail-item"><strong>Date of First Appointment:</strong> ${data.dateOfFirstAppointment ? new Date(data.dateOfFirstAppointment).toLocaleDateString() : 'N/A'}</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="notice-section">
-                    <div class="notice-title">📋 IMPORTANT NOTICE</div>
-                    <p style="font-size: 16px; margin: 8px 0;">Please bring this slip along with a valid ID on the day of examination.</p>
-                    <p style="font-size: 16px; font-weight: bold; color: #15411f;">Good luck with your examination!</p>
-                </div>
-            </div>
-            
-            <div class="footer">
-                <p>Generated on: ${new Date().toLocaleString()}</p>
-                <p>State Examination Board (SEB) • ${currentYear}</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
+    try {
+      this.logger.log('Starting PDF generation for registration slip');
+      
+      // Launch puppeteer browser
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu'
+        ]
+      });
+
+      const page = await browser.newPage();
+      
+      // Set page format for PDF
+      await page.setViewport({
+        width: 1200,
+        height: 800,
+        deviceScaleFactor: 1,
+      });
+
+      // Generate HTML content
+      const htmlContent = this.generateRegistrationSlipTemplate(data);
+      
+      // Set HTML content
+      await page.setContent(htmlContent, {
+        waitUntil: ['networkidle0', 'domcontentloaded'],
+        timeout: 30000
+      });
+
+      // Generate PDF
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20px',
+          right: '20px',
+          bottom: '20px',
+          left: '20px'
+        },
+        displayHeaderFooter: false,
+        preferCSSPageSize: true
+      });
+
+      this.logger.log('PDF generation completed successfully');
+      return Buffer.from(pdfBuffer);
+
+    } catch (error) {
+      this.logger.error('Failed to generate PDF for registration slip', error);
+      throw new InternalServerErrorException('Failed to generate registration slip PDF');
+    } finally {
+      // Always close the browser
+      if (browser) {
+        await browser.close();
+      }
+    }
   }
 
   private createTransporter() {
@@ -337,27 +171,60 @@ export class EmailService {
     }
   }
 
-  async sendWelcomeEmail(
-    email: string,
-    registrantData: {
-      firstName: string;
-      surname: string;
-      middleName: string;
-      examNumber?: string;
-      examType?: string;
-      examDate?: Date;
-      phone?: string;
-      gen
+  async sendWelcomeEmail(email: string, registrantData: RegistrantData): Promise<boolean> {
+    try {
+      this.logger.log(`Generating welcome email with PDF attachment for: ${email}`);
+      
+      // Generate the PDF registration slip
+      const pdfBuffer = await this.generateRegistrationSlipPDF(registrantData);
+      
+      // Generate welcome email HTML
+      const welcomeEmailHtml = this.generateWelcomeEmailTemplate({
+        firstName: registrantData.firstName,
+        surname: registrantData.surname,
+        examNumber: registrantData.examNumber,
+        examType: registrantData.examType,
+        examDate: registrantData.examDate,
+      });
+
+      // Create filename for PDF attachment
+      const pdfFileName = `${registrantData.examNumber || 'Registration'}_Slip_${registrantData.firstName}_${registrantData.surname}.pdf`;
+      
+      // Send email with PDF attachment
+      return this.sendEmail({
+        to: email,
+        subject: 'Welcome to SEB Exam Portal - Registration Successful',
+        html: welcomeEmailHtml,
+        text: `Dear ${registrantData.firstName} ${registrantData.surname}, your registration has been successful. Your exam number is ${registrantData.examNumber}. Please find your registration slip attached.`,
+        attachments: [
+          {
+            filename: pdfFileName,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+          }
+        ],
+      });
+
+    } catch (error) {
+      this.logger.error(`Failed to send welcome email with PDF to: ${email}`, error);
+      
+      // Fallback: Send email without PDF attachment
+      this.logger.log(`Attempting to send welcome email without PDF attachment to: ${email}`);
+      const welcomeEmailHtml = this.generateWelcomeEmailTemplate({
+        firstName: registrantData.firstName,
+        surname: registrantData.surname,
+        examNumber: registrantData.examNumber,
+        examType: registrantData.examType,
+        examDate: registrantData.examDate,
+      });
+      
+      return this.sendEmail({
+        to: email,
+        subject: 'Welcome to SEB Exam Portal - Registration Successful',
+        html: welcomeEmailHtml,
+        text: `Dear ${registrantData.firstName} ${registrantData.surname}, your registration has been successful. Your exam number is ${registrantData.examNumber}.`,
+      });
     }
-  ): Promise<boolean> {
-    const welcomeEmailHtml = this.generateWelcomeEmailTemplate(registrantData);
-    
-    return this.sendEmail({
-      to: email,
-      subject: 'Welcome to SEB Exam Portal - Registration Successful',
-      html: welcomeEmailHtml,
-      text: `Dear ${registrantData.firstName} ${registrantData.surname}, your registration has been successful. Your exam number is ${registrantData.examNumber}.`,
-    });
   }
 
   async sendExamStatusUpdateEmail(
@@ -365,7 +232,7 @@ export class EmailService {
     registrantData: {
       firstName: string;
       surname: string;
-      middlename: string,
+      middlename: string;
       examNumber: string;
       examStatus: string;
       totalScore?: number;
@@ -380,6 +247,11 @@ export class EmailService {
       html: statusUpdateHtml,
       text: `Dear ${registrantData.firstName} ${registrantData.surname}, your exam status has been updated to: ${registrantData.examStatus}`,
     });
+  }
+
+  // Method to generate and return PDF without sending email (for download purposes)
+  async generateRegistrationSlipPDFForDownload(registrantData: RegistrantData): Promise<Buffer> {
+    return this.generateRegistrationSlipPDF(registrantData);
   }
 
   private generateWelcomeEmailTemplate(data: {
@@ -425,6 +297,14 @@ export class EmailService {
                 margin: 20px 0;
                 border-left: 4px solid #0056b3;
             }
+            .attachment-notice {
+                background-color: #d4edda;
+                border: 1px solid #c3e6cb;
+                color: #155724;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 20px 0;
+            }
             .footer {
                 text-align: center;
                 margin-top: 20px;
@@ -443,6 +323,11 @@ export class EmailService {
             
             <p>Congratulations! Your registration for the SEB examination has been successfully completed.</p>
             
+            <div class="attachment-notice">
+                <h3>📎 Registration Slip Attached</h3>
+                <p><strong>Your official registration slip has been attached to this email as a PDF file.</strong> Please download and print it for your records. You will need to bring this slip along with a valid ID on the day of examination.</p>
+            </div>
+            
             ${data.examNumber ? `
             <div class="exam-details">
                 <h3>📋 Exam Details:</h3>
@@ -457,6 +342,8 @@ export class EmailService {
             <p><strong>Important Notes:</strong></p>
             <ul>
                 <li>Please keep your exam number safe as you will need it for future reference</li>
+                <li><strong>Download and print your registration slip attached to this email</strong></li>
+                <li>Bring both your registration slip and a valid ID to the examination venue</li>
                 <li>You will be notified of any updates regarding your exam status</li>
                 <li>Make sure to check your email regularly for important announcements</li>
             </ul>
